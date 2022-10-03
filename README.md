@@ -1,10 +1,19 @@
 cargo-check-external-types
 ==========================
 
-Static analysis tool that detects external types used in a Rust library's public API.
-Configuration can be provided to allow certain external types so that this tool can
-be used in continuous integration so that types don't unintentionally make it into
-the library's API. It can also output a Markdown table of the external types it found.
+`cargo-check-external-types` is a static analysis tool for Rust library authors
+to set and verify which types from other libraries are allowed to be are exposed in
+their public API. This is useful for ensuring that a breaking change to a dependency
+doesn't force a breaking change in the library that's using it.
+
+The tool has two output formats to cover different use-cases:
+- `errors` (the default): Output error messages for each type that is exposed in
+  the public API and exit with status 1 if there is at least one error. This is useful
+  for continuous integration.
+- `markdown-table`: Output the places types are exposed as a Markdown table. This is intended
+  as a discovery tool for established projects.
+
+The tool has an optional configuration file where types can by explicitly allowed.
 
 Example Output
 --------------
@@ -23,8 +32,9 @@ a [table of external types](tests/output-format-markdown-table-expected-output.m
 How to Use
 ----------
 
-_Important:_ This tool requires a nightly build of Rust to be installed since it relies on rustdoc JSON output.
-It was last tested against nightly-2022-07-25.
+_Important:_ This tool requires a nightly build of Rust to be installed since it relies on
+the [rustdoc JSON output](https://github.com/rust-lang/rust/issues/76578), which hasn't been
+stabilized yet. It was last tested against `nightly-2022-07-25`.
 
 To install, run the following from this README path:
 
