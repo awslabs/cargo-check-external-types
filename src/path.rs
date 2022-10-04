@@ -70,12 +70,12 @@ impl Path {
             .push(Component::new(typ, name.into(), span.cloned()));
     }
 
-    /// Returns the span (file + beginning and end positions) of the last [`Component`] in the stack.
+    /// Returns the span (file + beginning and end positions) of the last `Component` in the stack.
     pub fn last_span(&self) -> Option<&Span> {
         self.stack.last().and_then(|c| c.span.as_ref())
     }
 
-    /// Returns the [`ComponentType`] of the last [`Component`] in the path.
+    /// Returns the [`ComponentType`] of the last `Component` in the path.
     pub fn last_typ(&self) -> Option<ComponentType> {
         self.stack.last().map(|c| c.typ)
     }
