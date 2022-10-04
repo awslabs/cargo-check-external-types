@@ -54,10 +54,10 @@ impl FromStr for OutputFormat {
 #[derive(clap::Args, Debug, Eq, PartialEq)]
 struct CheckExternalTypesArgs {
     /// Enables all crate features
-    #[clap(long)]
+    #[clap(long, conflicts_with = "no-default-features")]
     all_features: bool,
     /// Disables default features
-    #[clap(long)]
+    #[clap(long, conflicts_with = "all-features")]
     no_default_features: bool,
     /// Comma delimited list of features to enable in the crate
     #[clap(long, use_value_delimiter = true)]
@@ -361,5 +361,17 @@ mod arg_parse_tests {
             ])
             .unwrap()
         );
+    }
+
+    #[test]
+    fn conflict_all_features_no_default_features() {
+        // Check `--all-features` and `--no-default-features` conflict
+        assert!(Args::try_parse_from([
+            "cargo",
+            "check-external-types",
+            "--all-features",
+            "--no-default-features"
+        ])
+        .is_err());
     }
 }
