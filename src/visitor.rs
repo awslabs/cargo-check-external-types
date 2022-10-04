@@ -39,11 +39,21 @@ enum VisibilityCheck {
 /// Visits all items in the Rustdoc JSON output to discover external types in public APIs
 /// and track them as validation errors if the [`Config`] doesn't allow them.
 pub struct Visitor {
+    /// Parsed config file from the user, or the defaults if none was provided
     config: Config,
+    /// The integer ID of the crate being visited that was assigned by rustdoc
     root_crate_id: u32,
+    /// Name of the crate being visited
     root_crate_name: String,
+    /// Map of rustdoc [`Id`] to rustdoc [`Item`]
     index: HashMap<Id, Item>,
+    /// Map of rustdoc [`Id`] to rustdoc [`ItemSummary`]
     paths: HashMap<Id, ItemSummary>,
+
+    /// Set of errors
+    ///
+    /// The visitor adds errors to this set while it visits each item in the rustdoc
+    /// output.
     errors: RefCell<BTreeSet<ValidationError>>,
 }
 
@@ -89,15 +99,16 @@ impl Visitor {
     fn is_public(path: &Path, item: &Item) -> bool {
         match item.visibility {
             Visibility::Public => true,
-            Visibility::Default => match &item.inner {
+            // This code is much clearer with a match statement
+            #[allow(clippy::match_like_matches_macro)]
+            Visibility::Default => match (&item.inner, path.last_type()) {
                 // Enum variants are public if the enum is public
-                ItemEnum::Variant(_) => matches!(path.last_typ(), Some(ComponentType::Enum)),
+                (ItemEnum::Variant(_), Some(ComponentType::Enum)) => true,
                 // Struct fields inside of enum variants are public if the enum is public
-                ItemEnum::StructField(_) => {
-                    matches!(path.last_typ(), Some(ComponentType::EnumVariant))
-                }
+                (ItemEnum::StructField(_), Some(ComponentType::EnumVariant)) => true,
                 // Trait items are public if the trait is public
-                _ => matches!(path.last_typ(), Some(ComponentType::Trait)),
+                (_, Some(ComponentType::Trait)) => true,
+                _ => false,
             },
             _ => false,
         }
@@ -159,7 +170,10 @@ impl Visitor {
             ItemEnum::Import(import) => {
                 if let Some(target_id) = &import.id {
                     if self.in_root_crate(target_id) {
-                        // Override the visibility check for re-exported items
+                        // Override the visibility check for re-exported items. Otherwise,
+                        // it will use the visibility of the item being re-exported, which,
+                        // if it's private, will result in no errors about external types
+                        // being emitted from it.
                         self.visit_item(
                             &path,
                             self.item(target_id).context(here!())?,
@@ -359,9 +373,11 @@ impl Visitor {
                 }
             }
             Type::Infer => {
+                // Don't know what Rust code translates into `Type::Infer`
                 unimplemented!(
-                    "visit_type for Type::Infer: not sure what Rust code triggers this. \
-                    If you encounter this, please report it with a link to the code it happens with."
+                    "This is a bug (visit_type for Type::Infer). \
+                    If you encounter this, please report it with the piece of Rust code that triggers it: \
+                    https://github.com/awslabs/cargo-check-external-types/issues/new"
                 )
             }
             Type::RawPointer { type_, .. } => {

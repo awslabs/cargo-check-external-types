@@ -76,7 +76,7 @@ impl Path {
     }
 
     /// Returns the [`ComponentType`] of the last `Component` in the path.
-    pub fn last_typ(&self) -> Option<ComponentType> {
+    pub fn last_type(&self) -> Option<ComponentType> {
         self.stack.last().map(|c| c.typ)
     }
 }
