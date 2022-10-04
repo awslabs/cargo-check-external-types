@@ -1,0 +1,105 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI
+on:
+  pull_request:
+
+# Allow one instance of this workflow per pull request, and cancel older runs when new changes are pushed
+concurrency:
+  group: ci-yaml-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUSTFLAGS: -Dwarnings
+  RUSTDOCFLAGS: -Dwarnings
+  RUST_BACKTRACE: 1
+  rust_version: nightly-2022-07-26
+
+jobs:
+  fmt:
+    name: Code formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        name: Install Rust
+        with:
+          toolchain: ${{ env.rust_version }}
+          override: true
+          components: rustfmt
+      - name: Check code formatting
+        run: |
+          if ! rustfmt --check --edition 2021 $(git ls-files '*.rs'); then
+            echo "Please run 'cargo fmt' to fix rustfmt errors."
+            exit 1
+          fi
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        name: Install Rust
+        with:
+          toolchain: ${{ env.rust_version }}
+          override: true
+          components: clippy
+      # Pinned to the commit hash of v1.3.0
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641
+      - name: Clippy
+        run: cargo clippy --all-features
+        env:
+          RUSTFLAGS: ${{ env.RUSTFLAGS }}
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        name: Install Rust
+        with:
+          toolchain: ${{ env.rust_version }}
+          override: true
+      # Pinned to the commit hash of v1.3.0
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641
+      - name: Tests
+        run: cargo test --all-features
+        env:
+          RUSTFLAGS: ${{ env.RUSTFLAGS }}
+          RUST_BACKTRACE: ${{ env.RUST_BACKTRACE }}
+
+  doc:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        name: Install Rust
+        with:
+          toolchain: ${{ env.rust_version }}
+          override: true
+      # Pinned to the commit hash of v1.3.0
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641
+      - name: Check Docs
+        run: cargo doc --all-features --document-private-items
+        env:
+          RUSTDOCFLAGS: ${{ env.RUSTDOCFLAGS }}
+
+  require-all:
+    name: All checks pass
+    needs:
+      - fmt
+      - clippy
+      - test
+      - doc
+    # Run this job even if its dependency jobs fail
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify jobs succeeded
+        uses: re-actors/alls-green@3a2de129f0713010a71314c74e33c0e3ef90e696
+        with:
+          jobs: ${{ toJSON(needs) }}
