@@ -218,6 +218,19 @@ impl ErrorPrinter {
         Ok(self.file_cache.get(path).unwrap())
     }
 
+    /// Outputs a human readable error with file location context
+    ///
+    /// # Example output
+    ///
+    /// ```text
+    /// error: Unapproved external type `external_lib::SomeStruct` referenced in public API
+    ///    --> test-crate/src/lib.rs:38:1
+    ///    |
+    /// 38 | pub fn external_in_fn_input(_one: &SomeStruct, _two: impl SimpleTrait) {}
+    ///    | ^-----------------------------------------------------------------------^
+    ///    |
+    ///    = in argument named `_one` of `test_crate::external_in_fn_input`
+    /// ```
     pub fn pretty_print_error_context(&mut self, location: &Span, subtext: String) {
         match self.get_file_contents(&location.filename) {
             Ok(file_contents) => {

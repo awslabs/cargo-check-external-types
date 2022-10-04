@@ -39,11 +39,21 @@ enum VisibilityCheck {
 /// Visits all items in the Rustdoc JSON output to discover external types in public APIs
 /// and track them as validation errors if the [`Config`] doesn't allow them.
 pub struct Visitor {
+    /// Parsed config file from the user, or the defaults if none was provided
     config: Config,
+    /// The integer ID of the crate being visited that was assigned by rustdoc
     root_crate_id: u32,
+    /// Name of the crate being visited
     root_crate_name: String,
+    /// Map of rustdoc [`Id`] to rustdoc [`Item`]
     index: HashMap<Id, Item>,
+    /// Map of rustdoc [`Id`] to rustdoc [`ItemSummary`]
     paths: HashMap<Id, ItemSummary>,
+
+    /// Set of errors
+    ///
+    /// The visitor adds errors to this set while it visits each item in the rustdoc
+    /// output.
     errors: RefCell<BTreeSet<ValidationError>>,
 }
 
@@ -159,7 +169,10 @@ impl Visitor {
             ItemEnum::Import(import) => {
                 if let Some(target_id) = &import.id {
                     if self.in_root_crate(target_id) {
-                        // Override the visibility check for re-exported items
+                        // Override the visibility check for re-exported items. Otherwise,
+                        // it will use the visibility of the item being re-exported, which,
+                        // if it's private, will result in no errors about external types
+                        // being emitted from it.
                         self.visit_item(
                             &path,
                             self.item(target_id).context(here!())?,
