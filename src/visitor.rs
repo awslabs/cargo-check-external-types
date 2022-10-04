@@ -99,6 +99,8 @@ impl Visitor {
     fn is_public(path: &Path, item: &Item) -> bool {
         match item.visibility {
             Visibility::Public => true,
+            // This code is much clearer with a match statement
+            #[allow(clippy::match_like_matches_macro)]
             Visibility::Default => match (&item.inner, path.last_type()) {
                 // Enum variants are public if the enum is public
                 (ItemEnum::Variant(_), Some(ComponentType::Enum)) => true,
