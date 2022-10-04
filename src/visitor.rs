@@ -371,9 +371,11 @@ impl Visitor {
                 }
             }
             Type::Infer => {
+                // Don't know what Rust code translates into `Type::Infer`
                 unimplemented!(
-                    "visit_type for Type::Infer: not sure what Rust code triggers this. \
-                    If you encounter this, please report it with a link to the code it happens with."
+                    "This is a bug (visit_type for Type::Infer). \
+                    If you encounter this, please report it with the piece of Rust code that triggers it: \
+                    https://github.com/awslabs/cargo-check-external-types/issues/new"
                 )
             }
             Type::RawPointer { type_, .. } => {
