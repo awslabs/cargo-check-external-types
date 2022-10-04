@@ -21,7 +21,7 @@ use std::str::FromStr;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 enum OutputFormat {
     Errors,
     MarkdownTable,
@@ -51,7 +51,7 @@ impl FromStr for OutputFormat {
     }
 }
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Debug, Eq, PartialEq)]
 struct CheckExternalTypesArgs {
     /// Enables all crate features
     #[clap(long)]
@@ -63,6 +63,7 @@ struct CheckExternalTypesArgs {
     #[clap(long, use_value_delimiter = true)]
     features: Option<Vec<String>>,
     /// Path to the Cargo manifest
+    #[clap(long)]
     manifest_path: Option<PathBuf>,
 
     /// Path to config toml to read
@@ -76,7 +77,7 @@ struct CheckExternalTypesArgs {
     output_format: OutputFormat,
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Eq, PartialEq)]
 #[clap(author, version, about, bin_name = "cargo")]
 enum Args {
     CheckExternalTypes(CheckExternalTypesArgs),
@@ -228,5 +229,137 @@ fn resolve_features(metadata: &Metadata) -> Result<Vec<String>> {
         Ok(root_node.features.clone())
     } else {
         bail!("Cargo metadata didn't have resolved nodes");
+    }
+}
+
+#[cfg(test)]
+mod arg_parse_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn defaults() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types"]).unwrap()
+        );
+    }
+
+    #[test]
+    fn all_features() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: true,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types", "--all-features"]).unwrap()
+        );
+    }
+
+    #[test]
+    fn no_default_features() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: true,
+                features: None,
+                manifest_path: None,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types", "--no-default-features"])
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn feature_list() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: Some(vec!["foo".into(), "bar".into()]),
+                manifest_path: None,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types", "--features", "foo,bar"])
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn manifest_path() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: Some("test-path".into()),
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+            }),
+            Args::try_parse_from([
+                "cargo",
+                "check-external-types",
+                "--manifest-path",
+                "test-path"
+            ])
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn verbose() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                config: None,
+                verbose: true,
+                output_format: OutputFormat::Errors,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types", "--verbose"]).unwrap()
+        );
+    }
+
+    #[test]
+    fn output_format_markdown_table() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::MarkdownTable,
+            }),
+            Args::try_parse_from([
+                "cargo",
+                "check-external-types",
+                "--output-format",
+                "markdown-table"
+            ])
+            .unwrap()
+        );
     }
 }
