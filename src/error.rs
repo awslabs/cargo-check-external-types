@@ -91,11 +91,8 @@ impl ValidationError {
         let type_name = type_name.into();
         let in_what_type = in_what_type.into();
         let sort_key = format!(
-            "{}:{}:{}:{}",
-            location_sort_key(location),
-            type_name,
-            what,
-            in_what_type
+            "{}:{type_name}:{what}:{in_what_type}",
+            location_sort_key(location)
         );
         Self::UnapprovedExternalTypeRef {
             type_name,

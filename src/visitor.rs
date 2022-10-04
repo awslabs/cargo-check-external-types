@@ -99,15 +99,14 @@ impl Visitor {
     fn is_public(path: &Path, item: &Item) -> bool {
         match item.visibility {
             Visibility::Public => true,
-            Visibility::Default => match &item.inner {
+            Visibility::Default => match (&item.inner, path.last_type()) {
                 // Enum variants are public if the enum is public
-                ItemEnum::Variant(_) => matches!(path.last_typ(), Some(ComponentType::Enum)),
+                (ItemEnum::Variant(_), Some(ComponentType::Enum)) => true,
                 // Struct fields inside of enum variants are public if the enum is public
-                ItemEnum::StructField(_) => {
-                    matches!(path.last_typ(), Some(ComponentType::EnumVariant))
-                }
+                (ItemEnum::StructField(_), Some(ComponentType::EnumVariant)) => true,
                 // Trait items are public if the trait is public
-                _ => matches!(path.last_typ(), Some(ComponentType::Trait)),
+                (_, Some(ComponentType::Trait)) => true,
+                _ => false,
             },
             _ => false,
         }
