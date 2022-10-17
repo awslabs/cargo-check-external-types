@@ -88,6 +88,75 @@ jobs:
         env:
           RUSTDOCFLAGS: ${{ env.RUSTDOCFLAGS }}
 
+  smoketest-aws-sdk:
+    name: Smoketest against the AWS Rust SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: cargo-check-external-types
+      - uses: actions/checkout@v3
+        with:
+          repository: awslabs/aws-sdk-rust
+          path: aws-sdk-rust
+      - uses: actions-rs/toolchain@v1
+        name: Install Rust
+        with:
+          toolchain: ${{ env.rust_version }}
+          override: true
+      # Pinned to the commit hash of v1.3.0
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641
+      - name: Run
+        run: |
+          cargo install --locked --path cargo-check-external-types
+          cd aws-sdk-rust/sdk
+          cargo check-external-types --all-features --config aws-config/external-types.toml --manifest-path aws-config/Cargo.toml
+          cargo check-external-types --all-features --config aws-endpoint/external-types.toml --manifest-path aws-endpoint/Cargo.toml
+          cargo check-external-types --all-features --config aws-http/external-types.toml --manifest-path aws-http/Cargo.toml
+          cargo check-external-types --all-features --config aws-sig-auth/external-types.toml --manifest-path aws-sig-auth/Cargo.toml
+          cargo check-external-types --all-features --config aws-sigv4/external-types.toml --manifest-path aws-sigv4/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-async/external-types.toml --manifest-path aws-smithy-async/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-checksums/external-types.toml --manifest-path aws-smithy-checksums/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-client/external-types.toml --manifest-path aws-smithy-client/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-eventstream/external-types.toml --manifest-path aws-smithy-eventstream/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-http-tower/external-types.toml --manifest-path aws-smithy-http-tower/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-http/external-types.toml --manifest-path aws-smithy-http/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-json/external-types.toml --manifest-path aws-smithy-json/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-query/external-types.toml --manifest-path aws-smithy-query/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-types-convert/external-types.toml --manifest-path aws-smithy-types-convert/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-types/external-types.toml --manifest-path aws-smithy-types/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-xml/external-types.toml --manifest-path aws-smithy-xml/Cargo.toml
+          cargo check-external-types --all-features --config aws-types/external-types.toml --manifest-path aws-types/Cargo.toml
+        env:
+          # Intentionally don't set flags
+          RUSTDOCFLAGS:
+
+  smoketest-tokio:
+    name: Smoketest against Tokio
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: cargo-check-external-types
+      - uses: actions/checkout@v3
+        with:
+          repository: tokio-rs/tokio
+          path: tokio
+      - uses: actions-rs/toolchain@v1
+        name: Install Rust
+        with:
+          toolchain: ${{ env.rust_version }}
+          override: true
+      # Pinned to the commit hash of v1.3.0
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641
+      - name: Run
+        run: |
+          cargo install --locked --path cargo-check-external-types
+          cargo check-external-types --all-features --config tokio/tokio/external-types.toml --manifest-path tokio/tokio/Cargo.toml
+        env:
+          # Intentionally don't set flags
+          RUSTDOCFLAGS:
+
   require-all:
     name: All checks pass
     needs:
@@ -95,6 +164,8 @@ jobs:
       - clippy
       - test
       - doc
+      - smoketest-aws-sdk
+      - smoketest-tokio
     # Run this job even if its dependency jobs fail
     if: always()
     runs-on: ubuntu-latest
