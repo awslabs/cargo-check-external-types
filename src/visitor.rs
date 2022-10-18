@@ -106,6 +106,8 @@ impl Visitor {
                 (ItemEnum::Variant(_), Some(ComponentType::Enum)) => true,
                 // Struct fields inside of enum variants are public if the enum is public
                 (ItemEnum::StructField(_), Some(ComponentType::EnumVariant)) => true,
+                // When an `AssocType` is visited, it is for the impl of a public trait. Impls of private traits are skipped
+                (ItemEnum::AssocType { .. }, Some(_)) => true,
                 // Trait items are public if the trait is public
                 (_, Some(ComponentType::Trait)) => true,
                 _ => false,
@@ -295,6 +297,20 @@ impl Visitor {
             if imp.blanket_impl.is_some() {
                 return Ok(());
             }
+            if let Some(trait_) = &imp.trait_ {
+                if let Type::ResolvedPath { id, .. } = trait_ {
+                    let trait_item = self.item(id).context(here!())?;
+
+                    // Don't look for exposure in impls of private traits
+                    if !Self::is_public(path, trait_item) {
+                        return Ok(());
+                    }
+                }
+
+                self.visit_type(path, &ErrorLocation::ImplementedTrait, trait_)
+                    .context(here!())?;
+            }
+
             self.visit_generics(path, &imp.generics)?;
             for id in &imp.items {
                 self.visit_item(
@@ -302,10 +318,6 @@ impl Visitor {
                     self.item(id).context(here!())?,
                     VisibilityCheck::Default,
                 )?;
-            }
-            if let Some(trait_) = &imp.trait_ {
-                self.visit_type(path, &ErrorLocation::ImplementedTrait, trait_)
-                    .context(here!())?;
             }
         } else {
             unreachable!("should be passed an Impl item");

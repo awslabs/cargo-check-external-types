@@ -42,3 +42,5 @@
 | external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:84:0 |
 | external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:89:4 |
 | external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:91:8 |
+| external_lib | external_lib::SomeStruct | test-crate/src/test_assoc_type.rs:12:4 |
+| external_lib | external_lib::SomeStruct | test-crate/src/test_assoc_type.rs:55:4 |
