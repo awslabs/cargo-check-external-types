@@ -46,7 +46,7 @@ impl CargoRustDocJson {
     pub fn run(&self) -> Result<Crate> {
         let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
 
-        let mut command = Command::new(&cargo);
+        let mut command = Command::new(cargo);
         command.current_dir(&self.crate_path).arg("rustdoc");
         if !self.features.is_empty() {
             command.arg("--no-default-features").arg("--features");

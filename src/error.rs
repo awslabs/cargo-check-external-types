@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use crate::NEW_ISSUE_URL;
 use anyhow::{Context, Result};
 use owo_colors::{OwoColorize, Stream};
 use pest::Position;
@@ -27,6 +28,7 @@ pub enum ErrorLocation {
     ClosureOutput,
     ConstGeneric,
     Constant,
+    DynTrait,
     EnumTupleEntry,
     GenericArg,
     GenericDefaultBinding,
@@ -51,6 +53,7 @@ impl fmt::Display for ErrorLocation {
             Self::ClosureOutput => "closure output of",
             Self::ConstGeneric => "const generic of",
             Self::Constant => "constant",
+            Self::DynTrait => "dyn trait of",
             Self::EnumTupleEntry => "enum tuple entry of",
             Self::GenericArg => "generic arg of",
             Self::GenericDefaultBinding => "generic default binding of",
@@ -94,6 +97,12 @@ impl ValidationError {
             "{}:{type_name}:{what}:{in_what_type}",
             location_sort_key(location)
         );
+        if location.is_none() {
+            eprintln!(
+                "WARN: An error is missing a span and will be printed without context, file name, and line number. \
+                This is a bug. Please report it with a piece of Rust code that triggers it at: {NEW_ISSUE_URL}"
+            );
+        }
         Self::UnapprovedExternalTypeRef {
             type_name,
             what: what.clone(),

@@ -4,6 +4,7 @@
 | external_lib | external_lib::AssociatedGenericTrait | test-crate/src/lib.rs:136:4 |
 | external_lib | external_lib::ReprCType | test-crate/src/test_union.rs:10:4 |
 | external_lib | external_lib::ReprCType | test-crate/src/test_union.rs:15:4 |
+| external_lib | external_lib::SimpleGenericTrait | test-crate/src/test_structs.rs:27:0 |
 | external_lib | external_lib::SimpleNewType | test-crate/src/lib.rs:158:4 |
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:104:4 |
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:122:0 |
@@ -13,7 +14,7 @@
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:38:0 |
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:38:0 |
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:47:0 |
-| external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:89:4 |
+| external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:89:26 |
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:92:8 |
 | external_lib | external_lib::SimpleTrait | test-crate/src/test_union.rs:21:0 |
 | external_lib | external_lib::SomeOtherStruct | test-crate/src/lib.rs:125:0 |
@@ -40,7 +41,10 @@
 | external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:80:4 |
 | external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:81:4 |
 | external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:84:0 |
-| external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:89:4 |
+| external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:89:14 |
 | external_lib | external_lib::SomeStruct | test-crate/src/lib.rs:91:8 |
 | external_lib | external_lib::SomeStruct | test-crate/src/test_assoc_type.rs:12:4 |
 | external_lib | external_lib::SomeStruct | test-crate/src/test_assoc_type.rs:55:4 |
+| external_lib | external_lib::SomeStruct | test-crate/src/test_structs.rs:14:4 |
+| external_lib | external_lib::SomeStruct | test-crate/src/test_structs.rs:27:0 |
+| external_lib | external_lib::SomeStruct | test-crate/src/test_structs.rs:8:39 |
