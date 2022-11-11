@@ -4,7 +4,7 @@
  */
 
 use crate::config::Config;
-use crate::error::{ErrorLocation, ValidationError};
+use crate::error::{ErrorLocation, ValidationError, ValidationErrors};
 use crate::path::{ComponentType, Path};
 use crate::{bug_panic, here};
 use anyhow::{anyhow, Context, Result};
@@ -14,7 +14,7 @@ use rustdoc_types::{
     Variant, Visibility, WherePredicate,
 };
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use tracing::debug;
 use tracing_attributes::instrument;
 
@@ -54,7 +54,7 @@ pub struct Visitor {
     ///
     /// The visitor adds errors to this set while it visits each item in the rustdoc
     /// output.
-    errors: RefCell<BTreeSet<ValidationError>>,
+    errors: RefCell<ValidationErrors>,
 }
 
 impl Visitor {
@@ -65,13 +65,13 @@ impl Visitor {
             root_crate_name: Self::root_crate_name(&package)?,
             index: package.index,
             paths: package.paths,
-            errors: RefCell::new(BTreeSet::new()),
+            errors: RefCell::new(ValidationErrors::new()),
         })
     }
 
     /// This is the entry point for visiting the entire Rustdoc JSON tree, starting
     /// from the root module (the only module where `is_crate` is true).
-    pub fn visit_all(self) -> Result<BTreeSet<ValidationError>> {
+    pub fn visit_all(self) -> Result<ValidationErrors> {
         let root_path = Path::new(&self.root_crate_name);
         let root_module = self
             .index
@@ -619,7 +619,7 @@ impl Visitor {
 
     fn add_error(&self, error: ValidationError) {
         debug!("detected error {:?}", error);
-        self.errors.borrow_mut().insert(error);
+        self.errors.borrow_mut().add(error);
     }
 
     fn item(&self, id: &Id) -> Result<&Item> {

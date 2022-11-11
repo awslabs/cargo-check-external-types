@@ -12,6 +12,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::fmt;
+use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 
 /// Where the error occurred relative to the [`Path`](crate::path::Path).
@@ -73,6 +74,46 @@ impl fmt::Display for ErrorLocation {
     }
 }
 
+#[derive(Default)]
+pub struct ValidationErrors {
+    errors: BTreeSet<ValidationError>,
+}
+
+impl ValidationErrors {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn error_count(&self) -> usize {
+        self.errors
+            .iter()
+            .map(ValidationError::level)
+            .filter(|&l| l == ErrorLevel::Error)
+            .count()
+    }
+
+    pub fn warning_count(&self) -> usize {
+        self.errors
+            .iter()
+            .map(ValidationError::level)
+            .filter(|&l| l == ErrorLevel::Warning)
+            .count()
+    }
+
+    pub fn add(&mut self, error: ValidationError) {
+        self.errors.insert(error);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ValidationError> {
+        self.errors.iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty()
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum ErrorLevel {
     Error,
     Warning,
@@ -339,8 +380,8 @@ impl ErrorPrinter {
         None
     }
 
-    pub fn pretty_print_errors(&mut self, errors: &BTreeSet<ValidationError>) {
-        for error in errors {
+    pub fn pretty_print_errors(&mut self, errors: &ValidationErrors) {
+        for error in errors.iter() {
             Self::print_error_level(error.level());
             println!("{}", error);
             if let Some(location) = error.location() {
@@ -349,22 +390,10 @@ impl ErrorPrinter {
         }
         if !errors.is_empty() {
             use owo_colors::{OwoColorize, Stream};
-            let (errors, warnings) =
-                errors
-                    .iter()
-                    .map(ValidationError::level)
-                    .fold((0, 0), |acc, item| {
-                        let (error, warning) = match item {
-                            ErrorLevel::Error => (1, 0),
-                            ErrorLevel::Warning => (0, 1),
-                        };
-                        (acc.0 + error, acc.1 + warning)
-                    });
+            let (error_count, warning_count) = (errors.error_count(), errors.warning_count());
             println!(
                 "{error_count} {errors}, {warning_count} {warnings} emitted",
-                error_count = errors,
                 errors = "errors".if_supports_color(Stream::Stdout, |text| text.red()),
-                warning_count = warnings,
                 warnings = "warnings".if_supports_color(Stream::Stdout, |text| text.yellow())
             );
         }

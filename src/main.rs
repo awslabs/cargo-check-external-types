@@ -175,7 +175,7 @@ fn run_main() -> Result<(), Error> {
     match args.output_format {
         OutputFormat::Errors => {
             ErrorPrinter::new(&cargo_metadata.workspace_root).pretty_print_errors(&errors);
-            if !errors.is_empty() {
+            if errors.error_count() > 0 {
                 return Err(Error::ValidationErrors);
             }
         }
@@ -183,7 +183,7 @@ fn run_main() -> Result<(), Error> {
             println!("| Crate | Type | Used In |");
             println!("| ---   | ---  | ---     |");
             let mut rows = Vec::new();
-            for error in &errors {
+            for error in errors.iter() {
                 if let ValidationError::UnapprovedExternalTypeRef { .. } = error {
                     let type_name = error.type_name();
                     let crate_name = &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
