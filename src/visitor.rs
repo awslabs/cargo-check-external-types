@@ -5,9 +5,8 @@
 
 use crate::config::Config;
 use crate::error::{ErrorLocation, ValidationError};
-use crate::here;
 use crate::path::{ComponentType, Path};
-use crate::NEW_ISSUE_URL;
+use crate::{bug_panic, here};
 use anyhow::{anyhow, Context, Result};
 use rustdoc_types::{
     Crate, FnDecl, GenericArgs, GenericBound, GenericParamDef, GenericParamDefKind, Generics, Id,
@@ -279,7 +278,9 @@ impl Visitor {
                 fields,
                 fields_stripped,
             } => {
-                assert!(!fields_stripped, "rustdoc is instructed to document private items, so `fields_stripped` should always be `false`");
+                if *fields_stripped {
+                    self.add_error(ValidationError::fields_stripped(path));
+                }
                 fields.clone()
             }
         };
@@ -420,10 +421,7 @@ impl Visitor {
             }
             Type::Infer => {
                 // Don't know what Rust code translates into `Type::Infer`
-                unimplemented!(
-                    "This is a bug (visit_type for Type::Infer). If you encounter this,
-                    please report it with the piece of Rust code that triggers it: {NEW_ISSUE_URL}"
-                )
+                bug_panic!("This is a bug (visit_type for Type::Infer).");
             }
             Type::RawPointer { type_, .. } => {
                 self.visit_type(path, what, type_).context(here!())?

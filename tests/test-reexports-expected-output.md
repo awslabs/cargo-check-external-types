@@ -54,4 +54,4 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
    |
    = in re-export named `test_reexports_crate::SomeStruct`
 
-7 errors emitted
+7 errors, 0 warnings emitted

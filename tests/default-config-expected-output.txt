@@ -418,4 +418,5 @@ error: Unapproved external type `external_lib::SimpleTrait` referenced in public
    |
    = in trait bound of `test_crate::test_union::GenericUnion`
 
-48 errors emitted
+warning: Fields on `test_crate::test_fields_stripped::SomeStructWithStrippedFields` marked `#[doc(hidden)]` cannot be checked for external types
+48 errors, 1 warnings emitted

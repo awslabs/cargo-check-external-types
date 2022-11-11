@@ -23,3 +23,29 @@ macro_rules! here {
         concat!($message, " (", here!(), ")")
     };
 }
+
+/// Macro that indicates there is a bug in the program, but doesn't panic.
+#[macro_export]
+macro_rules! bug {
+    ($($args:tt)+) => {
+        {
+            use owo_colors::{OwoColorize, Stream};
+            eprint!("{}",
+                "BUG: "
+                    .if_supports_color(Stream::Stdout, |text| text.purple())
+                    .if_supports_color(Stream::Stdout, |text| text.bold())
+            );
+            eprint!($($args)+);
+            eprintln!(" This is a bug. Please report it with a piece of Rust code that triggers it at: {}", $crate::NEW_ISSUE_URL);
+        }
+    };
+}
+
+/// Macro that indicates there is a bug in the program and then panics.
+#[macro_export]
+macro_rules! bug_panic {
+    ($($args:tt)+) => {
+        $crate::bug!($($args)+);
+        panic!("execution cannot continue");
+    };
+}
