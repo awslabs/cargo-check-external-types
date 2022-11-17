@@ -67,7 +67,7 @@ impl CargoRustDocJson {
         let output_file_name = self
             .target_path
             .canonicalize()
-            .context(here!())?
+            .context(here!("failed to canonicalize {:?}", self.target_path))?
             .join(format!("doc/{}.json", self.crate_name.replace('-', "_")));
 
         let json = fs::read_to_string(output_file_name).context(here!())?;

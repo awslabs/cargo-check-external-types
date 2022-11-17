@@ -19,8 +19,8 @@ macro_rules! here {
     () => {
         concat!("error at ", file!(), ":", line!(), ":", column!())
     };
-    ($message:tt) => {
-        concat!($message, " (", here!(), ")")
+    ($($args:tt)+) => {
+        format!("{} ({})", format!($($args)+), here!())
     };
 }
 
