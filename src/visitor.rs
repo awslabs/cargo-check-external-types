@@ -4,17 +4,17 @@
  */
 
 use crate::config::Config;
-use crate::error::{ErrorLocation, ValidationError};
-use crate::here;
+use crate::error::{ErrorLocation, ValidationError, ValidationErrors};
 use crate::path::{ComponentType, Path};
+use crate::{bug_panic, here};
 use anyhow::{anyhow, Context, Result};
 use rustdoc_types::{
     Crate, FnDecl, GenericArgs, GenericBound, GenericParamDef, GenericParamDefKind, Generics, Id,
-    Item, ItemEnum, ItemSummary, Struct, Term, Trait, Type, Union, Variant, Visibility,
-    WherePredicate,
+    Item, ItemEnum, ItemSummary, Path as RustDocPath, Struct, StructKind, Term, Trait, Type, Union,
+    Variant, Visibility, WherePredicate,
 };
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use tracing::debug;
 use tracing_attributes::instrument;
 
@@ -54,7 +54,7 @@ pub struct Visitor {
     ///
     /// The visitor adds errors to this set while it visits each item in the rustdoc
     /// output.
-    errors: RefCell<BTreeSet<ValidationError>>,
+    errors: RefCell<ValidationErrors>,
 }
 
 impl Visitor {
@@ -65,13 +65,13 @@ impl Visitor {
             root_crate_name: Self::root_crate_name(&package)?,
             index: package.index,
             paths: package.paths,
-            errors: RefCell::new(BTreeSet::new()),
+            errors: RefCell::new(ValidationErrors::new()),
         })
     }
 
     /// This is the entry point for visiting the entire Rustdoc JSON tree, starting
     /// from the root module (the only module where `is_crate` is true).
-    pub fn visit_all(self) -> Result<BTreeSet<ValidationError>> {
+    pub fn visit_all(self) -> Result<ValidationErrors> {
         let root_path = Path::new(&self.root_crate_name);
         let root_module = self
             .index
@@ -153,9 +153,7 @@ impl Visitor {
             ItemEnum::Enum(enm) => {
                 path.push(ComponentType::Enum, item);
                 self.visit_generics(&path, &enm.generics).context(here!())?;
-                for id in &enm.impls {
-                    self.visit_impl(&path, self.item(id).context(here!())?)?;
-                }
+                self.visit_impls(&path, &enm.impls).context(here!())?;
                 for id in &enm.variants {
                     self.visit_item(&path, self.item(id).context(here!())?, VisibilityCheck::Default).context(here!())?;
                 }
@@ -247,8 +245,22 @@ impl Visitor {
             ItemEnum::ExternCrate { .. }
             | ItemEnum::Impl(_)
             | ItemEnum::Macro(_)
-            | ItemEnum::PrimitiveType(_)
+            | ItemEnum::Primitive(_)
             | ItemEnum::ProcMacro(_) => {}
+        }
+        Ok(())
+    }
+
+    fn visit_impls(&self, path: &Path, impl_ids: &[Id]) -> Result<()> {
+        for id in impl_ids {
+            let impl_item = self.item(id).context(here!())?;
+            let mut impl_path = path.clone();
+            impl_path.push_raw(
+                ComponentType::Impl,
+                "",
+                impl_item.span.as_ref().or_else(|| path.last_span()),
+            );
+            self.visit_impl(&impl_path, impl_item).context(here!())?;
         }
         Ok(())
     }
@@ -256,13 +268,27 @@ impl Visitor {
     #[instrument(level = "debug", skip(self, path, strct), fields(path = %path))]
     fn visit_struct(&self, path: &Path, strct: &Struct) -> Result<()> {
         self.visit_generics(path, &strct.generics)?;
-        for id in &strct.fields {
+        let field_ids = match &strct.kind {
+            StructKind::Unit => {
+                // Unit structs don't have fields
+                Vec::new()
+            }
+            StructKind::Tuple(members) => members.iter().flatten().cloned().collect(),
+            StructKind::Plain {
+                fields,
+                fields_stripped,
+            } => {
+                if *fields_stripped {
+                    self.add_error(ValidationError::fields_stripped(path));
+                }
+                fields.clone()
+            }
+        };
+        for id in &field_ids {
             let field = self.item(id).context(here!())?;
             self.visit_item(path, field, VisibilityCheck::Default)?;
         }
-        for id in &strct.impls {
-            self.visit_impl(path, self.item(id).context(here!())?)?;
-        }
+        self.visit_impls(path, &strct.impls).context(here!())?;
         Ok(())
     }
 
@@ -273,9 +299,7 @@ impl Visitor {
             let field = self.item(id).context(here!())?;
             self.visit_item(path, field, VisibilityCheck::Default)?;
         }
-        for id in &unn.impls {
-            self.visit_impl(path, self.item(id).context(here!())?)?;
-        }
+        self.visit_impls(path, &unn.impls).context(here!())?;
         Ok(())
     }
 
@@ -290,6 +314,7 @@ impl Visitor {
         Ok(())
     }
 
+    /// Visits an `impl` block
     #[instrument(level = "debug", skip(self, path, item), fields(path = %path, id = %item.id.0))]
     fn visit_impl(&self, path: &Path, item: &Item) -> Result<()> {
         if let ItemEnum::Impl(imp) = &item.inner {
@@ -297,17 +322,24 @@ impl Visitor {
             if imp.blanket_impl.is_some() {
                 return Ok(());
             }
+            // Does the `impl` implement a trait?
             if let Some(trait_) = &imp.trait_ {
-                if let Type::ResolvedPath { id, .. } = trait_ {
-                    let trait_item = self.item(id).context(here!())?;
+                let trait_item = self.item(&trait_.id).context(here!())?;
 
-                    // Don't look for exposure in impls of private traits
-                    if !Self::is_public(path, trait_item) {
-                        return Ok(());
-                    }
+                // Don't look for exposure in impls of private traits
+                if !Self::is_public(path, trait_item) {
+                    return Ok(());
                 }
 
-                self.visit_type(path, &ErrorLocation::ImplementedTrait, trait_)
+                if let Some(_generic_args) = &trait_.args {
+                    // The `trait_` can have generic `args`, but we don't need to visit them
+                    // since they are on the trait itself. If the trait is part of the root crate,
+                    // it will be visited and checked for external types. If the trait is external,
+                    // then what it references doesn't matter for the purposes of this impl that is
+                    // being visited.
+                }
+
+                self.check_rustdoc_path(path, &ErrorLocation::ImplementedTrait, trait_)
                     .context(here!())?;
             }
 
@@ -344,17 +376,12 @@ impl Visitor {
     #[instrument(level = "debug", skip(self, path, typ), fields(path = %path))]
     fn visit_type(&self, path: &Path, what: &ErrorLocation, typ: &Type) -> Result<()> {
         match typ {
-            Type::ResolvedPath {
-                id,
-                args,
-                param_names,
-                ..
-            } => {
-                self.check_external(path, what, id).context(here!())?;
-                if let Some(args) = args {
-                    self.visit_generic_args(path, args)?;
+            Type::ResolvedPath(resolved_path) => {
+                self.check_rustdoc_path(path, what, resolved_path)
+                    .context(here!())?;
+                if let Some(args) = &resolved_path.args {
+                    self.visit_generic_args(path, args.as_ref())?;
                 }
-                self.visit_generic_bounds(path, param_names)?;
             }
             Type::Generic(_) => {}
             Type::Primitive(_) => {}
@@ -369,6 +396,14 @@ impl Visitor {
             }
             Type::Slice(typ) => self.visit_type(path, what, typ).context(here!())?,
             Type::Array { type_, .. } => self.visit_type(path, what, type_).context(here!())?,
+            Type::DynTrait(dyn_trait) => {
+                for trait_ in &dyn_trait.traits {
+                    self.check_rustdoc_path(path, &ErrorLocation::DynTrait, &trait_.trait_)
+                        .context(here!())?;
+                    self.visit_generic_param_defs(path, &trait_.generic_params)
+                        .context(here!())?;
+                }
+            }
             Type::ImplTrait(impl_trait) => {
                 for bound in impl_trait {
                     match bound {
@@ -377,7 +412,7 @@ impl Visitor {
                             generic_params,
                             ..
                         } => {
-                            self.visit_type(path, what, trait_)?;
+                            self.check_rustdoc_path(path, what, trait_)?;
                             self.visit_generic_param_defs(path, generic_params)?;
                         }
                         GenericBound::Outlives(_) => {}
@@ -386,11 +421,7 @@ impl Visitor {
             }
             Type::Infer => {
                 // Don't know what Rust code translates into `Type::Infer`
-                unimplemented!(
-                    "This is a bug (visit_type for Type::Infer). \
-                    If you encounter this, please report it with the piece of Rust code that triggers it: \
-                    https://github.com/awslabs/cargo-check-external-types/issues/new"
-                )
+                bug_panic!("This is a bug (visit_type for Type::Infer).");
             }
             Type::RawPointer { type_, .. } => {
                 self.visit_type(path, what, type_).context(here!())?
@@ -402,7 +433,7 @@ impl Visitor {
                 self_type, trait_, ..
             } => {
                 self.visit_type(path, &ErrorLocation::QualifiedSelfType, self_type)?;
-                self.visit_type(path, &ErrorLocation::QualifiedSelfTypeAsTrait, trait_)?;
+                self.check_rustdoc_path(path, &ErrorLocation::QualifiedSelfTypeAsTrait, trait_)?;
             }
         }
         Ok(())
@@ -459,7 +490,7 @@ impl Visitor {
                 ..
             } = bound
             {
-                self.visit_type(path, &ErrorLocation::TraitBound, trait_)
+                self.check_rustdoc_path(path, &ErrorLocation::TraitBound, trait_)
                     .context(here!())?;
                 self.visit_generic_param_defs(path, generic_params)?;
             }
@@ -486,7 +517,9 @@ impl Visitor {
                     self.visit_type(path, &ErrorLocation::ConstGeneric, type_)
                         .context(here!())?;
                 }
-                _ => {}
+                GenericParamDefKind::Lifetime { .. } => {
+                    // Lifetimes don't have types to check
+                }
             }
         }
         Ok(())
@@ -522,14 +555,22 @@ impl Visitor {
     #[instrument(level = "debug", skip(self, path, variant), fields(path = %path))]
     fn visit_variant(&self, path: &Path, variant: &Variant) -> Result<()> {
         match variant {
-            Variant::Plain => {}
+            Variant::Plain(_) => {}
             Variant::Tuple(types) => {
-                for typ in types {
-                    self.visit_type(path, &ErrorLocation::EnumTupleEntry, typ)?;
+                for type_id in types.iter().flatten() {
+                    // The type ID isn't the ID of the type being referenced, but rather, the ID
+                    // of the tuple entry (for example `0` or `1`). The actual type needs to be further
+                    // probed out of this (hence calling `visit_item` instead of `check_external`).
+                    let tuple_entry_item = self.item(type_id).context(here!())?;
+                    self.visit_item(path, tuple_entry_item, VisibilityCheck::Default)?;
                 }
             }
-            Variant::Struct(ids) => {
-                for id in ids {
+            Variant::Struct {
+                fields,
+                fields_stripped,
+            } => {
+                assert!(!fields_stripped, "rustdoc is instructed to document private items, so `fields_stripped` should always be `false`");
+                for id in fields {
                     self.visit_item(
                         path,
                         self.item(id).context(here!())?,
@@ -541,11 +582,27 @@ impl Visitor {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self, path, rustdoc_path), fields(path = %path))]
+    fn check_rustdoc_path(
+        &self,
+        path: &Path,
+        what: &ErrorLocation,
+        rustdoc_path: &RustDocPath,
+    ) -> Result<()> {
+        self.check_external(path, what, &rustdoc_path.id)
+            .context(here!())?;
+        if let Some(generic_args) = &rustdoc_path.args {
+            self.visit_generic_args(path, generic_args.as_ref())
+                .context(here!())?;
+        }
+        Ok(())
+    }
+
     fn check_external(&self, path: &Path, what: &ErrorLocation, id: &Id) -> Result<()> {
         if let Ok(type_name) = self.type_name(id) {
             if !self.config.allows_type(&self.root_crate_name, &type_name) {
                 self.add_error(ValidationError::unapproved_external_type_ref(
-                    self.type_name(id)?,
+                    type_name,
                     what,
                     path.to_string(),
                     path.last_span(),
@@ -562,7 +619,7 @@ impl Visitor {
 
     fn add_error(&self, error: ValidationError) {
         debug!("detected error {:?}", error);
-        self.errors.borrow_mut().insert(error);
+        self.errors.borrow_mut().add(error);
     }
 
     fn item(&self, id: &Id) -> Result<&Item> {

@@ -36,4 +36,5 @@ error: Unapproved external type `external_lib::ReprCType` referenced in public A
    |
    = in return value of `test_crate::test_union::SimpleUnion::repr_c`
 
-4 errors emitted
+warning: Fields on `test_crate::test_fields_stripped::SomeStructWithStrippedFields` marked `#[doc(hidden)]` cannot be checked for external types
+4 errors, 1 warnings emitted

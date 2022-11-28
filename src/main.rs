@@ -6,12 +6,11 @@
 use anyhow::{anyhow, bail};
 use anyhow::{Context, Result};
 use cargo_check_external_types::cargo::CargoRustDocJson;
-use cargo_check_external_types::error::ErrorPrinter;
+use cargo_check_external_types::error::{ErrorPrinter, ValidationError};
 use cargo_check_external_types::here;
 use cargo_check_external_types::visitor::Visitor;
 use cargo_metadata::{CargoOpt, Metadata};
 use clap::Parser;
-use owo_colors::{OwoColorize, Stream};
 use std::borrow::Cow;
 use std::fmt;
 use std::fs;
@@ -175,19 +174,8 @@ fn run_main() -> Result<(), Error> {
     let errors = Visitor::new(config, package)?.visit_all()?;
     match args.output_format {
         OutputFormat::Errors => {
-            let mut error_printer = ErrorPrinter::new(&cargo_metadata.workspace_root);
-            for error in &errors {
-                println!("{}", error);
-                if let Some(location) = error.location() {
-                    error_printer.pretty_print_error_context(location, error.subtext())
-                }
-            }
-            if !errors.is_empty() {
-                println!(
-                    "{} {} emitted",
-                    errors.len(),
-                    "errors".if_supports_color(Stream::Stdout, |text| text.red())
-                );
+            ErrorPrinter::new(&cargo_metadata.workspace_root).pretty_print_errors(&errors);
+            if errors.error_count() > 0 {
                 return Err(Error::ValidationErrors);
             }
         }
@@ -195,18 +183,20 @@ fn run_main() -> Result<(), Error> {
             println!("| Crate | Type | Used In |");
             println!("| ---   | ---  | ---     |");
             let mut rows = Vec::new();
-            for error in &errors {
-                let type_name = error.type_name();
-                let crate_name = &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
-                let location = error.location().unwrap();
-                rows.push(format!(
-                    "| {} | {} | {}:{}:{} |",
-                    crate_name,
-                    type_name,
-                    location.filename.to_string_lossy(),
-                    location.begin.0,
-                    location.begin.1
-                ));
+            for error in errors.iter() {
+                if let ValidationError::UnapprovedExternalTypeRef { .. } = error {
+                    let type_name = error.type_name();
+                    let crate_name = &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
+                    let location = error.location().unwrap();
+                    rows.push(format!(
+                        "| {} | {} | {}:{}:{} |",
+                        crate_name,
+                        type_name,
+                        location.filename.to_string_lossy(),
+                        location.begin.0,
+                        location.begin.1
+                    ));
+                }
             }
             rows.sort();
             rows.into_iter().for_each(|row| println!("{}", row));

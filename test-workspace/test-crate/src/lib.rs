@@ -10,6 +10,8 @@
 //! exposure of external types in a public API.
 
 pub mod test_assoc_type;
+pub mod test_fields_stripped;
+pub mod test_structs;
 pub mod test_union;
 
 use external_lib::{
@@ -18,8 +20,6 @@ use external_lib::{
     SimpleTrait,
     SomeOtherStruct,
     SomeStruct,
-    // Remove this comment if more lines are needed for imports in the future to preserve line numbers
-    // Remove this comment if more lines are needed for imports in the future to preserve line numbers
     // Remove this comment if more lines are needed for imports in the future to preserve line numbers
     // Remove this comment if more lines are needed for imports in the future to preserve line numbers
     // Remove this comment if more lines are needed for imports in the future to preserve line numbers

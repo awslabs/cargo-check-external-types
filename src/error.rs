@@ -3,13 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use crate::bug;
 use anyhow::{Context, Result};
-use owo_colors::{OwoColorize, Stream};
 use pest::Position;
 use rustdoc_types::Span;
+use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::fmt;
+use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 
 /// Where the error occurred relative to the [`Path`](crate::path::Path).
@@ -27,6 +30,7 @@ pub enum ErrorLocation {
     ClosureOutput,
     ConstGeneric,
     Constant,
+    DynTrait,
     EnumTupleEntry,
     GenericArg,
     GenericDefaultBinding,
@@ -51,6 +55,7 @@ impl fmt::Display for ErrorLocation {
             Self::ClosureOutput => "closure output of",
             Self::ConstGeneric => "const generic of",
             Self::Constant => "constant",
+            Self::DynTrait => "dyn trait of",
             Self::EnumTupleEntry => "enum tuple entry of",
             Self::GenericArg => "generic arg of",
             Self::GenericDefaultBinding => "generic default binding of",
@@ -69,6 +74,51 @@ impl fmt::Display for ErrorLocation {
     }
 }
 
+#[derive(Default)]
+pub struct ValidationErrors {
+    errors: BTreeSet<ValidationError>,
+}
+
+impl ValidationErrors {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn error_count(&self) -> usize {
+        self.errors
+            .iter()
+            .map(ValidationError::level)
+            .filter(|&l| l == ErrorLevel::Error)
+            .count()
+    }
+
+    pub fn warning_count(&self) -> usize {
+        self.errors
+            .iter()
+            .map(ValidationError::level)
+            .filter(|&l| l == ErrorLevel::Warning)
+            .count()
+    }
+
+    pub fn add(&mut self, error: ValidationError) {
+        self.errors.insert(error);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ValidationError> {
+        self.errors.iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty()
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum ErrorLevel {
+    Error,
+    Warning,
+}
+
 /// Error type for validation errors that get displayed to the user on the CLI.
 #[derive(Debug)]
 pub enum ValidationError {
@@ -78,6 +128,9 @@ pub enum ValidationError {
         in_what_type: String,
         location: Option<Span>,
         sort_key: String,
+    },
+    FieldsStripped {
+        type_name: String,
     },
 }
 
@@ -94,6 +147,9 @@ impl ValidationError {
             "{}:{type_name}:{what}:{in_what_type}",
             location_sort_key(location)
         );
+        if location.is_none() {
+            bug!("An error is missing a span and will be printed without context, file name, and line number.");
+        }
         Self::UnapprovedExternalTypeRef {
             type_name,
             what: what.clone(),
@@ -103,48 +159,63 @@ impl ValidationError {
         }
     }
 
+    pub fn level(&self) -> ErrorLevel {
+        match self {
+            Self::UnapprovedExternalTypeRef { .. } => ErrorLevel::Error,
+            Self::FieldsStripped { .. } => ErrorLevel::Warning,
+        }
+    }
+
+    pub fn fields_stripped(path: &crate::path::Path) -> Self {
+        Self::FieldsStripped {
+            type_name: path.to_string(),
+        }
+    }
+
     pub fn type_name(&self) -> &str {
         match self {
-            Self::UnapprovedExternalTypeRef { type_name, .. } => type_name,
+            Self::UnapprovedExternalTypeRef { type_name, .. }
+            | Self::FieldsStripped { type_name } => type_name,
         }
     }
 
     pub fn location(&self) -> Option<&Span> {
         match self {
             Self::UnapprovedExternalTypeRef { location, .. } => location.as_ref(),
+            Self::FieldsStripped { .. } => None,
         }
     }
 
     fn sort_key(&self) -> &str {
         match self {
             Self::UnapprovedExternalTypeRef { sort_key, .. } => sort_key.as_ref(),
+            Self::FieldsStripped { type_name } => type_name.as_ref(),
         }
     }
 
     pub fn fmt_headline(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnapprovedExternalTypeRef { type_name, .. } => {
-                let inner = format!(
-                    "Unapproved external type `{}` referenced in public API",
-                    type_name
-                );
                 write!(
                     f,
-                    "{} {}",
-                    "error:"
-                        .if_supports_color(Stream::Stdout, |text| text.red())
-                        .if_supports_color(Stream::Stdout, |text| text.bold()),
-                    inner.if_supports_color(Stream::Stdout, |text| text.bold())
+                    "Unapproved external type `{type_name}` referenced in public API"
+                )
+            }
+            Self::FieldsStripped { type_name } => {
+                write!(
+                    f,
+                    "Fields on `{type_name}` marked `#[doc(hidden)]` cannot be checked for external types"
                 )
             }
         }
     }
 
-    pub fn subtext(&self) -> String {
+    pub fn subtext(&self) -> Cow<'static, str> {
         match self {
             Self::UnapprovedExternalTypeRef {
                 what, in_what_type, ..
-            } => format!("in {} `{}`", what, in_what_type),
+            } => format!("in {} `{}`", what, in_what_type).into(),
+            Self::FieldsStripped { .. } => "".into(),
         }
     }
 }
@@ -215,6 +286,28 @@ impl ErrorPrinter {
         Ok(self.file_cache.get(path).unwrap())
     }
 
+    fn print_error_level(level: ErrorLevel) {
+        use owo_colors::{OwoColorize, Stream};
+        match level {
+            ErrorLevel::Error => {
+                print!(
+                    "{}",
+                    "error: "
+                        .if_supports_color(Stream::Stdout, |text| text.red())
+                        .if_supports_color(Stream::Stdout, |text| text.bold())
+                );
+            }
+            ErrorLevel::Warning => {
+                print!(
+                    "{}",
+                    "warning: "
+                        .if_supports_color(Stream::Stdout, |text| text.yellow())
+                        .if_supports_color(Stream::Stdout, |text| text.bold())
+                );
+            }
+        }
+    }
+
     /// Outputs a human readable error with file location context
     ///
     /// # Example output
@@ -228,7 +321,7 @@ impl ErrorPrinter {
     ///    |
     ///    = in argument named `_one` of `test_crate::external_in_fn_input`
     /// ```
-    pub fn pretty_print_error_context(&mut self, location: &Span, subtext: String) {
+    pub fn pretty_print_error_context(&mut self, location: &Span, subtext: &str) {
         match self.get_file_contents(&location.filename) {
             Ok(file_contents) => {
                 let begin = Self::position_from_line_col(file_contents, location.begin);
@@ -236,7 +329,9 @@ impl ErrorPrinter {
 
                 // HACK: Using Pest to do the pretty error context formatting for lack of
                 // knowledge of a smaller library tailored to this use-case
-                let variant = pest::error::ErrorVariant::<()>::CustomError { message: subtext };
+                let variant = pest::error::ErrorVariant::<()>::CustomError {
+                    message: subtext.into(),
+                };
                 let err_context = match (begin, end) {
                     (Some(b), Some(e)) => {
                         Some(pest::error::Error::new_from_span(variant, b.span(&e)))
@@ -252,7 +347,8 @@ impl ErrorPrinter {
                 }
             }
             Err(err) => {
-                println!("error: {subtext}");
+                Self::print_error_level(ErrorLevel::Error);
+                println!("{subtext}");
                 println!(
                     "  --> {}:{}:{}",
                     location.filename.to_string_lossy(),
@@ -282,5 +378,24 @@ impl ErrorPrinter {
             }
         }
         None
+    }
+
+    pub fn pretty_print_errors(&mut self, errors: &ValidationErrors) {
+        for error in errors.iter() {
+            Self::print_error_level(error.level());
+            println!("{}", error);
+            if let Some(location) = error.location() {
+                self.pretty_print_error_context(location, error.subtext().as_ref())
+            }
+        }
+        if !errors.is_empty() {
+            use owo_colors::{OwoColorize, Stream};
+            let (error_count, warning_count) = (errors.error_count(), errors.warning_count());
+            println!(
+                "{error_count} {errors}, {warning_count} {warnings} emitted",
+                errors = "errors".if_supports_color(Stream::Stdout, |text| text.red()),
+                warnings = "warnings".if_supports_color(Stream::Stdout, |text| text.yellow())
+            );
+        }
     }
 }

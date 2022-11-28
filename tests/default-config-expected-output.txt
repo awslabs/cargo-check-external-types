@@ -138,21 +138,21 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
    |
    = in generic default binding of `test_crate::EnumWithExternals`
 
-error: Unapproved external type `external_lib::SimpleTrait` referenced in public API
-  --> test-crate/src/lib.rs:89:5
-   |
-89 |     TupleEnum(SomeStruct, Box<dyn SimpleTrait>),
-   |     ^-----------------------------------------^
-   |
-   = in generic arg of `test_crate::EnumWithExternals::TupleEnum`
-
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
-  --> test-crate/src/lib.rs:89:5
+  --> test-crate/src/lib.rs:89:15
    |
 89 |     TupleEnum(SomeStruct, Box<dyn SimpleTrait>),
-   |     ^-----------------------------------------^
+   |               ^--------^
    |
-   = in enum tuple entry of `test_crate::EnumWithExternals::TupleEnum`
+   = in struct field of `test_crate::EnumWithExternals::TupleEnum::0`
+
+error: Unapproved external type `external_lib::SimpleTrait` referenced in public API
+  --> test-crate/src/lib.rs:89:27
+   |
+89 |     TupleEnum(SomeStruct, Box<dyn SimpleTrait>),
+   |                           ^------------------^
+   |
+   = in dyn trait of `test_crate::EnumWithExternals::TupleEnum::1`
 
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
   --> test-crate/src/lib.rs:91:9
@@ -168,7 +168,7 @@ error: Unapproved external type `external_lib::SimpleTrait` referenced in public
 92 |         simple_trait: Box<dyn SimpleTrait>,
    |         ^--------------------------------^
    |
-   = in generic arg of `test_crate::EnumWithExternals::StructEnum::simple_trait`
+   = in dyn trait of `test_crate::EnumWithExternals::StructEnum::simple_trait`
 
 error: Unapproved external type `external_lib::SimpleTrait` referenced in public API
    --> test-crate/src/lib.rs:104:5
@@ -234,7 +234,7 @@ error: Unapproved external type `external_lib::SimpleTrait` referenced in public
 122 | pub type DynExternalReferencingTypedef = Box<dyn SimpleTrait>;
     | ^------------------------------------------------------------^
     |
-    = in generic arg of `test_crate::DynExternalReferencingTypedef`
+    = in dyn trait of `test_crate::DynExternalReferencingTypedef`
 
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
    --> test-crate/src/lib.rs:123:1
@@ -354,6 +354,42 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
    |
    = in generic arg of `test_crate::test_assoc_type::PublicStructImplsPublicTraitWithAssocType::Something`
 
+error: Unapproved external type `external_lib::SomeStruct` referenced in public API
+ --> test-crate/src/test_structs.rs:8:40
+  |
+8 | pub struct TupleStructWithExternalType(pub external_lib::SomeStruct);
+  |                                        ^--------------------------^
+  |
+  = in struct field of `test_crate::test_structs::TupleStructWithExternalType::0`
+
+error: Unapproved external type `external_lib::SomeStruct` referenced in public API
+  --> test-crate/src/test_structs.rs:14:5
+   |
+14 |     pub external: external_lib::SomeStruct,
+   |     ^------------------------------------^
+   |
+   = in struct field of `test_crate::test_structs::PlainStructWithExternalType::external`
+
+error: Unapproved external type `external_lib::SimpleGenericTrait` referenced in public API
+  --> test-crate/src/test_structs.rs:27:1
+   |
+27 | impl external_lib::SimpleGenericTrait<external_lib::SomeStruct> for ImplsGenericTrait {
+   | ...
+31 | }␊
+   | ^
+   |
+   = in implemented trait of `test_crate::test_structs::ImplsGenericTrait`
+
+error: Unapproved external type `external_lib::SomeStruct` referenced in public API
+  --> test-crate/src/test_structs.rs:27:1
+   |
+27 | impl external_lib::SimpleGenericTrait<external_lib::SomeStruct> for ImplsGenericTrait {
+   | ...
+31 | }␊
+   | ^
+   |
+   = in generic arg of `test_crate::test_structs::ImplsGenericTrait`
+
 error: Unapproved external type `external_lib::ReprCType` referenced in public API
   --> test-crate/src/test_union.rs:10:5
    |
@@ -382,4 +418,5 @@ error: Unapproved external type `external_lib::SimpleTrait` referenced in public
    |
    = in trait bound of `test_crate::test_union::GenericUnion`
 
-44 errors emitted
+warning: Fields on `test_crate::test_fields_stripped::SomeStructWithStrippedFields` marked `#[doc(hidden)]` cannot be checked for external types
+48 errors, 1 warnings emitted

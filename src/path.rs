@@ -16,6 +16,7 @@ pub enum ComponentType {
     Enum,
     EnumVariant,
     Function,
+    Impl,
     Method,
     Module,
     ReExport,
@@ -86,6 +87,7 @@ impl fmt::Display for Path {
         let names: Vec<&str> = self
             .stack
             .iter()
+            .filter(|component| !component.name.is_empty())
             .map(|component| component.name.as_str())
             .collect();
         write!(f, "{}", names.join("::"))
