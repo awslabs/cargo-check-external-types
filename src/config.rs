@@ -88,8 +88,8 @@ impl<'de> Visitor<'de> for VecWildMatchDeserializer {
         A: SeqAccess<'de>,
     {
         let mut result = Vec::new();
-        while let Some(value) = seq.next_element::<&str>()? {
-            result.push(WildMatch::new(value));
+        while let Some(value) = seq.next_element::<String>()? {
+            result.push(WildMatch::new(&value));
         }
         Ok(result)
     }
