@@ -324,7 +324,7 @@ impl Visitor {
                     if !Self::is_public(path, trait_item) {
                         return Ok(());
                     }
-                    
+
                     if let Some(_generic_args) = &trait_.args {
                         // The `trait_` can have generic `args`, but we don't need to visit them
                         // since they are on the trait itself. If the trait is part of the root crate,
@@ -428,8 +428,12 @@ impl Visitor {
                 self_type, trait_, ..
             } => {
                 self.visit_type(path, &ErrorLocation::QualifiedSelfType, self_type)?;
-                if let Some(trait_) = trait_ {  
-                    self.check_rustdoc_path(path, &ErrorLocation::QualifiedSelfTypeAsTrait, trait_)?;
+                if let Some(trait_) = trait_ {
+                    self.check_rustdoc_path(
+                        path,
+                        &ErrorLocation::QualifiedSelfTypeAsTrait,
+                        trait_,
+                    )?;
                 }
             }
         }
