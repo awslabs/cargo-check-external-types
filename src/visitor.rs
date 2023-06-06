@@ -11,7 +11,7 @@ use anyhow::{anyhow, Context, Result};
 use rustdoc_types::{
     Crate, FnDecl, GenericArgs, GenericBound, GenericParamDef, GenericParamDefKind, Generics, Id,
     Item, ItemEnum, ItemSummary, Path as RustDocPath, Struct, StructKind, Term, Trait, Type, Union,
-    Variant, Visibility, WherePredicate,
+    Variant, VariantKind, Visibility, WherePredicate,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -185,11 +185,6 @@ impl Visitor {
                         .context(here!())?;
                 }
             }
-            ItemEnum::Method(method) => {
-                path.push(ComponentType::Method, item);
-                self.visit_fn_decl(&path, &method.decl).context(here!())?;
-                self.visit_generics(&path, &method.generics).context(here!())?;
-            }
             ItemEnum::Module(module) => {
                 if !module.is_crate {
                     path.push(ComponentType::Module, item);
@@ -324,19 +319,19 @@ impl Visitor {
             }
             // Does the `impl` implement a trait?
             if let Some(trait_) = &imp.trait_ {
-                let trait_item = self.item(&trait_.id).context(here!())?;
-
-                // Don't look for exposure in impls of private traits
-                if !Self::is_public(path, trait_item) {
-                    return Ok(());
-                }
-
-                if let Some(_generic_args) = &trait_.args {
-                    // The `trait_` can have generic `args`, but we don't need to visit them
-                    // since they are on the trait itself. If the trait is part of the root crate,
-                    // it will be visited and checked for external types. If the trait is external,
-                    // then what it references doesn't matter for the purposes of this impl that is
-                    // being visited.
+                if let Ok(trait_item) = self.item(&trait_.id) {
+                    // Don't look for exposure in impls of private traits
+                    if !Self::is_public(path, trait_item) {
+                        return Ok(());
+                    }
+                    
+                    if let Some(_generic_args) = &trait_.args {
+                        // The `trait_` can have generic `args`, but we don't need to visit them
+                        // since they are on the trait itself. If the trait is part of the root crate,
+                        // it will be visited and checked for external types. If the trait is external,
+                        // then what it references doesn't matter for the purposes of this impl that is
+                        // being visited.
+                    }
                 }
 
                 self.check_rustdoc_path(path, &ErrorLocation::ImplementedTrait, trait_)
@@ -433,7 +428,9 @@ impl Visitor {
                 self_type, trait_, ..
             } => {
                 self.visit_type(path, &ErrorLocation::QualifiedSelfType, self_type)?;
-                self.check_rustdoc_path(path, &ErrorLocation::QualifiedSelfTypeAsTrait, trait_)?;
+                if let Some(trait_) = trait_ {  
+                    self.check_rustdoc_path(path, &ErrorLocation::QualifiedSelfTypeAsTrait, trait_)?;
+                }
             }
         }
         Ok(())
@@ -554,9 +551,9 @@ impl Visitor {
 
     #[instrument(level = "debug", skip(self, path, variant), fields(path = %path))]
     fn visit_variant(&self, path: &Path, variant: &Variant) -> Result<()> {
-        match variant {
-            Variant::Plain(_) => {}
-            Variant::Tuple(types) => {
+        match &variant.kind {
+            VariantKind::Plain => {}
+            VariantKind::Tuple(types) => {
                 for type_id in types.iter().flatten() {
                     // The type ID isn't the ID of the type being referenced, but rather, the ID
                     // of the tuple entry (for example `0` or `1`). The actual type needs to be further
@@ -565,7 +562,7 @@ impl Visitor {
                     self.visit_item(path, tuple_entry_item, VisibilityCheck::Default)?;
                 }
             }
-            Variant::Struct {
+            VariantKind::Struct {
                 fields,
                 fields_stripped,
             } => {

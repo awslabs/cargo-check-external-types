@@ -209,7 +209,14 @@ fn run_main() -> Result<(), Error> {
 fn resolve_features(metadata: &Metadata) -> Result<Vec<String>> {
     let root_package = metadata
         .root_package()
-        .ok_or_else(|| anyhow!("No root package found"))?;
+        .ok_or_else(|| {
+            let workspace_members = metadata.workspace_members.as_slice().iter().map(|id| id.to_string()).collect::<Vec<_>>().join("\n");
+            if !workspace_members.is_empty() {
+                anyhow!("it appears you're trying to run `cargo-check-external-types` on a workspace Cargo.toml; Instead, run it on one of the workspace member Cargo.tomls directly:\n{workspace_members}")
+            } else {
+                anyhow!("No root package found")
+            }
+        })?;
     if let Some(resolve) = &metadata.resolve {
         let root_node = resolve
             .nodes
