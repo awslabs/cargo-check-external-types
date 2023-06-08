@@ -7,7 +7,9 @@
 // manually debug.
 #![no_std]
 
-pub use hidden_module::{InnerStructA, InnerStructB, InnerStructC, SimpleNewType, InnerEnum, inner_fn};
+pub use hidden_module::{
+    inner_fn, InnerEnum, InnerStructA, InnerStructB, InnerStructC, SimpleNewType,
+};
 // TODO: Because this public module is declared within a hidden module, it can't be checked for external types.
 pub use hidden_module::public_module;
 
@@ -23,7 +25,7 @@ mod hidden_module {
     pub fn inner_fn() -> external_lib::SimpleNewType {}
 
     pub enum InnerEnum {
-        SimpleNewType(SimpleNewType)
+        SimpleNewType(SimpleNewType),
     }
 
     pub mod public_module {
