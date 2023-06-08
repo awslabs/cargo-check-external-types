@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// no_std makes reading the RustDoc-generated JSON thousands of lines smaller, and therefore easier to
+// manually debug.
+#![no_std]
+
 //! This crate exports a bunch of types for testing cargo-check-external-types against `test-crate`
 
 pub struct SomeStruct;

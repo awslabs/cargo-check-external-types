@@ -17,7 +17,6 @@ pub enum ComponentType {
     EnumVariant,
     Function,
     Impl,
-    Method,
     Module,
     ReExport,
     Static,

@@ -11,11 +11,12 @@ use anyhow::{anyhow, Context, Result};
 use rustdoc_types::{
     Crate, FnDecl, GenericArgs, GenericBound, GenericParamDef, GenericParamDefKind, Generics, Id,
     Item, ItemEnum, ItemSummary, Path as RustDocPath, Struct, StructKind, Term, Trait, Type, Union,
-    Variant, Visibility, WherePredicate,
+    Variant, VariantKind, Visibility, WherePredicate,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
-use tracing::debug;
+use std::sync::Once;
+use tracing::{debug, warn};
 use tracing_attributes::instrument;
 
 macro_rules! unstable_rust_feature {
@@ -36,6 +37,9 @@ enum VisibilityCheck {
     AssumePublic,
 }
 
+pub(crate) type Index = HashMap<Id, Item>;
+pub(crate) type Paths = HashMap<Id, ItemSummary>;
+
 /// Visits all items in the Rustdoc JSON output to discover external types in public APIs
 /// and track them as validation errors if the [`Config`] doesn't allow them.
 pub struct Visitor {
@@ -46,9 +50,9 @@ pub struct Visitor {
     /// Name of the crate being visited
     root_crate_name: String,
     /// Map of rustdoc [`Id`] to rustdoc [`Item`]
-    index: HashMap<Id, Item>,
+    index: Index,
     /// Map of rustdoc [`Id`] to rustdoc [`ItemSummary`]
-    paths: HashMap<Id, ItemSummary>,
+    paths: Paths,
 
     /// Set of errors
     ///
@@ -168,27 +172,41 @@ impl Visitor {
                 self.visit_generics(&path, &function.generics).context(here!())?;
             }
             ItemEnum::Import(import) => {
+                // We only want to update the path once. When the `target_id` is in the root crate,
+                // we don't want to update the path unless the `target_id` isn't present in the index.
+                let update_path = Once::new();
                 if let Some(target_id) = &import.id {
                     if self.in_root_crate(target_id) {
                         // Override the visibility check for re-exported items. Otherwise,
                         // it will use the visibility of the item being re-exported, which,
                         // if it's private, will result in no errors about external types
                         // being emitted from it.
-                        self.visit_item(
-                            &path,
-                            self.item(target_id).context(here!())?,
-                            VisibilityCheck::AssumePublic
-                        ).context(here!())?;
+                        match self.item(target_id).context(here!()) {
+                            Ok(item) => self.visit_item(&path, item, VisibilityCheck::AssumePublic)?,
+                            // When an item in the root crate can't be resolved, it's due to it being declared in a
+                            // #[doc(hidden)] module before being reexported publicly. We log a warning to notify
+                            // the user that we couldn't check this type for external types.
+                            Err(_) => {
+                                update_path.call_once(|| {
+                                    path.push_raw(ComponentType::ReExport, &import.name, item.span.as_ref());
+                                });
+                                let first_hidden_module_in_path = infer_first_hidden_module_in_import_source(&import.source, &self.index);
+                                self.add_error(ValidationError::hidden_module(
+                                    import.name.clone(),
+                                    &ErrorLocation::ReExport,
+                                    path.to_string(),
+                                    path.last_span(),
+                                    first_hidden_module_in_path,
+                                ));
+                            }
+                        };
                     }
-                    path.push_raw(ComponentType::ReExport, &import.name, item.span.as_ref());
+                    update_path.call_once(|| {
+                        path.push_raw(ComponentType::ReExport, &import.name, item.span.as_ref());
+                    });
                     self.check_external(&path, &ErrorLocation::ReExport, target_id)
                         .context(here!())?;
                 }
-            }
-            ItemEnum::Method(method) => {
-                path.push(ComponentType::Method, item);
-                self.visit_fn_decl(&path, &method.decl).context(here!())?;
-                self.visit_generics(&path, &method.generics).context(here!())?;
             }
             ItemEnum::Module(module) => {
                 if !module.is_crate {
@@ -324,19 +342,19 @@ impl Visitor {
             }
             // Does the `impl` implement a trait?
             if let Some(trait_) = &imp.trait_ {
-                let trait_item = self.item(&trait_.id).context(here!())?;
+                if let Ok(trait_item) = self.item(&trait_.id) {
+                    // Don't look for exposure in impls of private traits
+                    if !Self::is_public(path, trait_item) {
+                        return Ok(());
+                    }
 
-                // Don't look for exposure in impls of private traits
-                if !Self::is_public(path, trait_item) {
-                    return Ok(());
-                }
-
-                if let Some(_generic_args) = &trait_.args {
-                    // The `trait_` can have generic `args`, but we don't need to visit them
-                    // since they are on the trait itself. If the trait is part of the root crate,
-                    // it will be visited and checked for external types. If the trait is external,
-                    // then what it references doesn't matter for the purposes of this impl that is
-                    // being visited.
+                    if let Some(_generic_args) = &trait_.args {
+                        // The `trait_` can have generic `args`, but we don't need to visit them
+                        // since they are on the trait itself. If the trait is part of the root crate,
+                        // it will be visited and checked for external types. If the trait is external,
+                        // then what it references doesn't matter for the purposes of this impl that is
+                        // being visited.
+                    }
                 }
 
                 self.check_rustdoc_path(path, &ErrorLocation::ImplementedTrait, trait_)
@@ -433,7 +451,13 @@ impl Visitor {
                 self_type, trait_, ..
             } => {
                 self.visit_type(path, &ErrorLocation::QualifiedSelfType, self_type)?;
-                self.check_rustdoc_path(path, &ErrorLocation::QualifiedSelfTypeAsTrait, trait_)?;
+                if let Some(trait_) = trait_ {
+                    self.check_rustdoc_path(
+                        path,
+                        &ErrorLocation::QualifiedSelfTypeAsTrait,
+                        trait_,
+                    )?;
+                }
             }
         }
         Ok(())
@@ -554,9 +578,9 @@ impl Visitor {
 
     #[instrument(level = "debug", skip(self, path, variant), fields(path = %path))]
     fn visit_variant(&self, path: &Path, variant: &Variant) -> Result<()> {
-        match variant {
-            Variant::Plain(_) => {}
-            Variant::Tuple(types) => {
+        match &variant.kind {
+            VariantKind::Plain => {}
+            VariantKind::Tuple(types) => {
                 for type_id in types.iter().flatten() {
                     // The type ID isn't the ID of the type being referenced, but rather, the ID
                     // of the tuple entry (for example `0` or `1`). The actual type needs to be further
@@ -565,7 +589,7 @@ impl Visitor {
                     self.visit_item(path, tuple_entry_item, VisibilityCheck::Default)?;
                 }
             }
-            Variant::Struct {
+            VariantKind::Struct {
                 fields,
                 fields_stripped,
             } => {
@@ -625,7 +649,13 @@ impl Visitor {
     fn item(&self, id: &Id) -> Result<&Item> {
         self.index
             .get(id)
-            .ok_or_else(|| anyhow!("Failed to find item in index for ID {:?}", id))
+            .ok_or_else(|| {
+                if let Some(item_summary) = self.paths.get(id) {
+                    anyhow!("Failed to find item in index for ID {:?} but did find an item summary: {item_summary:?}", id)
+                } else {
+                    anyhow!("Failed to find item in index for ID {:?}", id)
+                }
+            })
             .context(here!())
     }
 
@@ -661,4 +691,20 @@ impl Visitor {
             .ok_or_else(|| anyhow!("root not found in index"))
             .context(here!())
     }
+}
+
+/// Check each segment of a module path against the index. If a segment isn't present in the index,
+/// assume that it's the hidden module and return it. Because the path
+fn infer_first_hidden_module_in_import_source(
+    import_source: &str,
+    index: &Index,
+) -> Option<String> {
+    import_source.split("::").find_map(|part| {
+        // When the path part is included in the index, we skip it. If it's not indexed, then it's likely hidden.
+        let part_is_not_indexed = !index
+            .values()
+            .any(|v| v.name.as_ref().map(|name| name == part).unwrap_or_default());
+
+        part_is_not_indexed.then_some(part.to_owned())
+    })
 }

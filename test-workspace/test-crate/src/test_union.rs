@@ -13,7 +13,7 @@ pub union SimpleUnion {
 
 impl SimpleUnion {
     pub fn repr_c(&self) -> &ReprCType {
-        &self.repr_c
+        unsafe { &self.repr_c }
     }
 }
 

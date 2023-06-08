@@ -14,7 +14,7 @@ env:
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
   RUST_BACKTRACE: 1
-  rust_version: nightly-2022-11-16
+  rust_version: nightly-2023-05-31
 
 jobs:
   fmt:
@@ -113,6 +113,7 @@ jobs:
           cargo check-external-types --all-features --config aws-config/external-types.toml --manifest-path aws-config/Cargo.toml
           cargo check-external-types --all-features --config aws-endpoint/external-types.toml --manifest-path aws-endpoint/Cargo.toml
           cargo check-external-types --all-features --config aws-http/external-types.toml --manifest-path aws-http/Cargo.toml
+          cargo check-external-types --all-features --config aws-runtime/external-types.toml --manifest-path aws-runtime/Cargo.toml
           cargo check-external-types --all-features --config aws-sig-auth/external-types.toml --manifest-path aws-sig-auth/Cargo.toml
           cargo check-external-types --all-features --config aws-sigv4/external-types.toml --manifest-path aws-sigv4/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-async/external-types.toml --manifest-path aws-smithy-async/Cargo.toml
@@ -123,6 +124,8 @@ jobs:
           cargo check-external-types --all-features --config aws-smithy-http/external-types.toml --manifest-path aws-smithy-http/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-json/external-types.toml --manifest-path aws-smithy-json/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-query/external-types.toml --manifest-path aws-smithy-query/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-runtime-api/external-types.toml --manifest-path aws-smithy-runtime-api/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-runtime/external-types.toml --manifest-path aws-smithy-runtime/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-types-convert/external-types.toml --manifest-path aws-smithy-types-convert/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-types/external-types.toml --manifest-path aws-smithy-types/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-xml/external-types.toml --manifest-path aws-smithy-xml/Cargo.toml

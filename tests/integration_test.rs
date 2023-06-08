@@ -38,14 +38,14 @@ fn run_with_args(in_path: impl AsRef<Path>, args: &[&str]) -> String {
 
 #[test]
 fn with_default_config() {
-    let expected_output = fs::read_to_string("tests/default-config-expected-output.txt").unwrap();
+    let expected_output = fs::read_to_string("tests/default-config-expected-output.md").unwrap();
     let actual_output = run_with_args("test-workspace/test-crate", &[]);
     assert_str_eq!(expected_output, actual_output);
 }
 
 #[test]
 fn with_some_allowed_types() {
-    let expected_output = fs::read_to_string("tests/allow-some-types-expected-output.txt").unwrap();
+    let expected_output = fs::read_to_string("tests/allow-some-types-expected-output.md").unwrap();
     let actual_output = run_with_args(
         "test-workspace/test-crate",
         &["--config", "../../tests/allow-some-types.toml"],
@@ -73,5 +73,13 @@ fn with_output_format_markdown_table() {
 fn test_reexports() {
     let expected_output = fs::read_to_string("tests/test-reexports-expected-output.md").unwrap();
     let actual_output = run_with_args("test-workspace/test-reexports-crate", &[]);
+    assert_str_eq!(expected_output, actual_output);
+}
+
+#[test]
+fn test_type_exported_from_hidden_module() {
+    let expected_output =
+        fs::read_to_string("tests/test-type-exported-from-hidden-module.md").unwrap();
+    let actual_output = run_with_args("test-workspace/test-type-exported-from-hidden-module", &[]);
     assert_str_eq!(expected_output, actual_output);
 }

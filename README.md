@@ -34,7 +34,7 @@ How to Use
 
 _Important:_ This tool requires a nightly build of Rust to be installed since it relies on
 the [rustdoc JSON output](https://github.com/rust-lang/rust/issues/76578), which hasn't been
-stabilized yet. It was last tested against `nightly-2022-11-16`.
+stabilized yet. It was last tested against `nightly-2023-05-31`.
 
 To install, run the following from this README path:
 
@@ -63,6 +63,10 @@ run the command with:
 ```bash
 cargo +nightly check-external-types --config external-types.toml
 ```
+
+### Caveats
+
+When public types and modules declared inside a `#[doc(hidden)]` module are reexported from a public module, they aren't checked for external types. This is because of how they are recorded in RustDoc's index. When such types and modules are encountered by this tool, a warning will be logged.
 
 ## Security
 

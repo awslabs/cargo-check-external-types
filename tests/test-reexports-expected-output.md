@@ -28,7 +28,7 @@ error: Unapproved external type `external_lib::SimpleGenericTrait` referenced in
 11 |     pub use external_lib::SimpleGenericTrait;
    |     ^---------------------------------------^
    |
-   = in re-export named `test_reexports_crate::Something::SimpleGenericTrait`
+   = in re-export named `test_reexports_crate::something::SimpleGenericTrait`
 
 error: Unapproved external type `external_lib::SimpleNewType` referenced in public API
   --> test-reexports-crate/src/lib.rs:12:5
@@ -36,7 +36,7 @@ error: Unapproved external type `external_lib::SimpleNewType` referenced in publ
 12 |     pub use external_lib::SimpleNewType;
    |     ^----------------------------------^
    |
-   = in re-export named `test_reexports_crate::Something::SimpleNewType`
+   = in re-export named `test_reexports_crate::something::SimpleNewType`
 
 error: Unapproved external type `external_lib::SomeOtherStruct` referenced in public API
   --> test-reexports-crate/src/lib.rs:15:1
