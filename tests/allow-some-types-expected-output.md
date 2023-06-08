@@ -31,7 +31,7 @@ error: Unapproved external type `external_lib::ReprCType` referenced in public A
    |
 15 |     pub fn repr_c(&self) -> &ReprCType {
    | ...
-19 |     }␊
+17 |     }␊
    |     ^
    |
    = in return value of `test_crate::test_union::SimpleUnion::repr_c`
