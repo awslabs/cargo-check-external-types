@@ -132,6 +132,13 @@ pub enum ValidationError {
     FieldsStripped {
         type_name: String,
     },
+    HiddenModule {
+        type_name: String,
+        what: ErrorLocation,
+        in_what_type: String,
+        location: Option<Span>,
+        hidden_module: Option<String>,
+    },
 }
 
 impl ValidationError {
@@ -162,7 +169,7 @@ impl ValidationError {
     pub fn level(&self) -> ErrorLevel {
         match self {
             Self::UnapprovedExternalTypeRef { .. } => ErrorLevel::Error,
-            Self::FieldsStripped { .. } => ErrorLevel::Warning,
+            Self::HiddenModule { .. } | Self::FieldsStripped { .. } => ErrorLevel::Warning,
         }
     }
 
@@ -172,16 +179,37 @@ impl ValidationError {
         }
     }
 
+    pub fn hidden_module(
+        type_name: impl Into<String>,
+        what: &ErrorLocation,
+        in_what_type: impl Into<String>,
+        location: Option<&Span>,
+        hidden_module: Option<String>,
+    ) -> Self {
+        if location.is_none() {
+            bug!("A warning is missing a span and will be printed without context, file name, and line number.");
+        }
+        Self::HiddenModule {
+            type_name: type_name.into(),
+            what: what.clone(),
+            in_what_type: in_what_type.into(),
+            location: location.cloned(),
+            hidden_module,
+        }
+    }
+
     pub fn type_name(&self) -> &str {
         match self {
             Self::UnapprovedExternalTypeRef { type_name, .. }
+            | Self::HiddenModule { type_name, .. }
             | Self::FieldsStripped { type_name } => type_name,
         }
     }
 
     pub fn location(&self) -> Option<&Span> {
         match self {
-            Self::UnapprovedExternalTypeRef { location, .. } => location.as_ref(),
+            Self::UnapprovedExternalTypeRef { location, .. }
+            | Self::HiddenModule { location, .. } => location.as_ref(),
             Self::FieldsStripped { .. } => None,
         }
     }
@@ -189,7 +217,9 @@ impl ValidationError {
     fn sort_key(&self) -> &str {
         match self {
             Self::UnapprovedExternalTypeRef { sort_key, .. } => sort_key.as_ref(),
-            Self::FieldsStripped { type_name } => type_name.as_ref(),
+            Self::FieldsStripped { type_name } | Self::HiddenModule { type_name, .. } => {
+                type_name.as_ref()
+            }
         }
     }
 
@@ -199,6 +229,17 @@ impl ValidationError {
                 write!(
                     f,
                     "Unapproved external type `{type_name}` referenced in public API"
+                )
+            }
+            Self::HiddenModule {
+                type_name,
+                hidden_module,
+                ..
+            } => {
+                let hidden_module = hidden_module.as_deref().unwrap_or("???");
+                write!(
+                    f,
+                    "Module path for reexported type `{type_name}` contains a `#[doc(hidden)]` module \"{hidden_module}\". Types declared in this module cannot be checked for external types"
                 )
             }
             Self::FieldsStripped { type_name } => {
@@ -216,6 +257,9 @@ impl ValidationError {
                 what, in_what_type, ..
             } => format!("in {} `{}`", what, in_what_type).into(),
             Self::FieldsStripped { .. } => "".into(),
+            Self::HiddenModule {
+                what, in_what_type, ..
+            } => format!("in {} `{}`", what, in_what_type).into(),
         }
     }
 }

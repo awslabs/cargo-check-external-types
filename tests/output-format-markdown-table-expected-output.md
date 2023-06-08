@@ -16,7 +16,7 @@
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:47:0 |
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:89:26 |
 | external_lib | external_lib::SimpleTrait | test-crate/src/lib.rs:92:8 |
-| external_lib | external_lib::SimpleTrait | test-crate/src/test_union.rs:21:0 |
+| external_lib | external_lib::SimpleTrait | test-crate/src/test_union.rs:23:0 |
 | external_lib | external_lib::SomeOtherStruct | test-crate/src/lib.rs:125:0 |
 | external_lib | external_lib::SomeOtherStruct | test-crate/src/lib.rs:136:4 |
 | external_lib | external_lib::SomeOtherStruct | test-crate/src/lib.rs:72:4 |

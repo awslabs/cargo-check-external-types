@@ -64,6 +64,10 @@ run the command with:
 cargo +nightly check-external-types --config external-types.toml
 ```
 
+### Caveats
+
+When public types and modules declared inside a `#[doc(hidden)]` module are reexported from a public module, they aren't checked for external types. This is because of how they are recorded in RustDoc's index. When such types and modules are encountered by this tool, a warning will be logged.
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.

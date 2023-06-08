@@ -25,7 +25,7 @@ pub struct PlainStructWithoutPrivateExternalType {
 
 pub struct ImplsGenericTrait;
 impl external_lib::SimpleGenericTrait<external_lib::SomeStruct> for ImplsGenericTrait {
-    fn something(&self, thing: external_lib::SomeStruct) -> u32 {
+    fn something(&self, _thing: external_lib::SomeStruct) -> u32 {
         0
     }
 }

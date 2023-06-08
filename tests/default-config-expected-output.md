@@ -403,17 +403,17 @@ error: Unapproved external type `external_lib::ReprCType` referenced in public A
    |
 15 |     pub fn repr_c(&self) -> &ReprCType {
    | ...
-17 |     }␊
+19 |     }␊
    |     ^
    |
    = in return value of `test_crate::test_union::SimpleUnion::repr_c`
 
 error: Unapproved external type `external_lib::SimpleTrait` referenced in public API
-  --> test-crate/src/test_union.rs:21:1
+  --> test-crate/src/test_union.rs:23:1
    |
-21 | pub union GenericUnion<T: Copy + SimpleTrait> {
+23 | pub union GenericUnion<T: Copy + SimpleTrait> {
    | ...
-24 | }␊
+26 | }␊
    | ^
    |
    = in trait bound of `test_crate::test_union::GenericUnion`

@@ -7,7 +7,7 @@ pub use external_lib::AssociatedGenericTrait;
 pub use external_lib::ReprCType;
 pub use external_lib::SimpleTrait;
 
-pub mod Something {
+pub mod something {
     pub use external_lib::SimpleGenericTrait;
     pub use external_lib::SimpleNewType;
 }
