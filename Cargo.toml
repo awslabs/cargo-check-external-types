@@ -10,7 +10,7 @@ repository = "https://github.com/awslabs/cargo-check-external-types"
 [dependencies]
 anyhow = "1"
 cargo_metadata = "0.15"
-clap = { version = "~3.2.25", features = ["derive"] }
+clap = { version = "~4.3.21", features = ["derive"] }
 owo-colors = { version = "3", features = ["supports-colors"] }
 pest = "2" # For pretty error formatting
 rustdoc-types = "0.22.0"
