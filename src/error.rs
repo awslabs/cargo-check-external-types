@@ -42,7 +42,7 @@ pub enum ErrorLocation {
     Static,
     StructField,
     TraitBound,
-    TypeDef,
+    TypeAlias,
     WhereBound,
 }
 
@@ -67,7 +67,7 @@ impl fmt::Display for ErrorLocation {
             Self::Static => "static value",
             Self::StructField => "struct field of",
             Self::TraitBound => "trait bound of",
-            Self::TypeDef => "typedef type of",
+            Self::TypeAlias => "type alias of",
             Self::WhereBound => "where bound of",
         };
         write!(f, "{}", s)

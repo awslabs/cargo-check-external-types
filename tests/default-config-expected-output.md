@@ -215,26 +215,26 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
    --> test-crate/src/lib.rs:120:1
     |
-120 | pub type ExternalReferencingTypedef = SomeStruct;
-    | ^-----------------------------------------------^
+120 | pub type ExternalReferencingTypeAlias = SomeStruct;
+    | ^-------------------------------------------------^
     |
-    = in typedef type of `test_crate::ExternalReferencingTypedef`
+    = in type alias of `test_crate::ExternalReferencingTypeAlias`
 
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
    --> test-crate/src/lib.rs:121:1
     |
-121 | pub type OptionalExternalReferencingTypedef = Option<SomeStruct>;
-    | ^---------------------------------------------------------------^
+121 | pub type OptionalExternalReferencingTypeAlias = Option<SomeStruct>;
+    | ^-----------------------------------------------------------------^
     |
-    = in generic arg of `test_crate::OptionalExternalReferencingTypedef`
+    = in generic arg of `test_crate::OptionalExternalReferencingTypeAlias`
 
 error: Unapproved external type `external_lib::SimpleTrait` referenced in public API
    --> test-crate/src/lib.rs:122:1
     |
-122 | pub type DynExternalReferencingTypedef = Box<dyn SimpleTrait>;
-    | ^------------------------------------------------------------^
+122 | pub type DynExternalReferencingTypeAlias = Box<dyn SimpleTrait>;
+    | ^--------------------------------------------------------------^
     |
-    = in dyn trait of `test_crate::DynExternalReferencingTypedef`
+    = in dyn trait of `test_crate::DynExternalReferencingTypeAlias`
 
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
    --> test-crate/src/lib.rs:123:1
@@ -242,7 +242,7 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
 123 | pub type ExternalReferencingRawPtr = *const SomeStruct;
     | ^-----------------------------------------------------^
     |
-    = in typedef type of `test_crate::ExternalReferencingRawPtr`
+    = in type alias of `test_crate::ExternalReferencingRawPtr`
 
 error: Unapproved external type `external_lib::AssociatedGenericTrait` referenced in public API
    --> test-crate/src/lib.rs:125:1

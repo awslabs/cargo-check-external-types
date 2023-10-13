@@ -23,7 +23,7 @@ pub enum ComponentType {
     Struct,
     StructField,
     Trait,
-    TypeDef,
+    TypeAlias,
     Union,
 }
 

@@ -242,11 +242,11 @@ impl Visitor {
                 path.push(ComponentType::Trait, item);
                 self.visit_trait(&path, trt).context(here!())?;
             }
-            ItemEnum::Typedef(typedef) => {
-                path.push(ComponentType::TypeDef, item);
-                self.visit_type(&path, &ErrorLocation::TypeDef, &typedef.type_)
+            ItemEnum::TypeAlias(alias) => {
+                path.push(ComponentType::TypeAlias, item);
+                self.visit_type(&path, &ErrorLocation::TypeAlias, &alias.type_)
                     .context(here!())?;
-                self.visit_generics(&path, &typedef.generics).context(here!())?;
+                self.visit_generics(&path, &alias.generics).context(here!())?;
             }
             ItemEnum::TraitAlias(_) => unstable_rust_feature!(
                 "trait_alias",

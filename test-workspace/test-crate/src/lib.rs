@@ -117,9 +117,9 @@ pub mod some_pub_mod {
 }
 
 pub type NotExternalReferencing = u32;
-pub type ExternalReferencingTypedef = SomeStruct;
-pub type OptionalExternalReferencingTypedef = Option<SomeStruct>;
-pub type DynExternalReferencingTypedef = Box<dyn SimpleTrait>;
+pub type ExternalReferencingTypeAlias = SomeStruct;
+pub type OptionalExternalReferencingTypeAlias = Option<SomeStruct>;
+pub type DynExternalReferencingTypeAlias = Box<dyn SimpleTrait>;
 pub type ExternalReferencingRawPtr = *const SomeStruct;
 
 pub fn fn_with_external_trait_bounds<I, O, E, T>(_thing: T)
