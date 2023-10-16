@@ -42,7 +42,7 @@ pub enum ErrorLocation {
     Static,
     StructField,
     TraitBound,
-    TypeDef,
+    TypeAlias,
     WhereBound,
 }
 
@@ -67,7 +67,7 @@ impl fmt::Display for ErrorLocation {
             Self::Static => "static value",
             Self::StructField => "struct field of",
             Self::TraitBound => "trait bound of",
-            Self::TypeDef => "typedef type of",
+            Self::TypeAlias => "type alias of",
             Self::WhereBound => "where bound of",
         };
         write!(f, "{}", s)
@@ -279,13 +279,13 @@ fn location_sort_key(location: Option<&Span>) -> String {
 
 impl Ord for ValidationError {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        self.sort_key().cmp(other.sort_key())
     }
 }
 
 impl PartialOrd for ValidationError {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.sort_key().partial_cmp(other.sort_key())
+        Some(self.cmp(other))
     }
 }
 

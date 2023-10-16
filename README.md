@@ -34,7 +34,7 @@ How to Use
 
 _Important:_ This tool requires a nightly build of Rust to be installed since it relies on
 the [rustdoc JSON output](https://github.com/rust-lang/rust/issues/76578), which hasn't been
-stabilized yet. It was last tested against `nightly-2023-05-31`.
+stabilized yet. It was last tested against `nightly-2023-10-10`.
 
 To install, run the following from this README path:
 
