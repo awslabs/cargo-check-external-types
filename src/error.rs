@@ -279,13 +279,13 @@ fn location_sort_key(location: Option<&Span>) -> String {
 
 impl Ord for ValidationError {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        self.sort_key().cmp(other.sort_key())
     }
 }
 
 impl PartialOrd for ValidationError {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.sort_key().partial_cmp(other.sort_key())
+        Some(self.cmp(other))
     }
 }
 
