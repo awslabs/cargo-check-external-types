@@ -42,7 +42,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-check-external-types"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "cargo_metadata",
