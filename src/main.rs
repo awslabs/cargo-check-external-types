@@ -9,9 +9,8 @@ use cargo_check_external_types::cargo::CargoRustDocJson;
 use cargo_check_external_types::error::{ErrorPrinter, ValidationError};
 use cargo_check_external_types::here;
 use cargo_check_external_types::visitor::Visitor;
-use cargo_metadata::{CargoOpt, Package, Metadata};
+use cargo_metadata::{CargoOpt, Metadata, Package};
 use clap::Parser;
-use std::borrow::Cow;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
@@ -155,15 +154,12 @@ fn run_main() -> Result<(), Error> {
     };
     let cargo_metadata = cargo_metadata_cmd.exec().context(here!())?;
     let cargo_features = resolve_features(&cargo_metadata)?;
+    let cargo_lib_name = resolve_lib_name(&cargo_metadata)?;
 
     eprintln!("Running rustdoc to produce json doc output...");
     let package = CargoRustDocJson::new(
-        &*cargo_metadata
-            .root_package()
-            .as_ref()
-            .map(|package| Cow::Borrowed(package.name.as_str()))
-            .unwrap_or_else(|| crate_path.file_name().expect("file name").to_string_lossy()),
-        &crate_path,
+        cargo_lib_name,
+        crate_path,
         &cargo_metadata.target_directory,
         cargo_features,
     )
@@ -218,6 +214,21 @@ fn resolve_features(metadata: &Metadata) -> Result<Vec<String>> {
     } else {
         bail!("Cargo metadata didn't have resolved nodes");
     }
+}
+
+fn resolve_lib_name(metadata: &Metadata) -> Result<String> {
+    let lib_targets = resolve_root_package(metadata)?
+        .targets
+        .iter()
+        .filter(|t| t.kind.iter().any(|k| k == "lib"))
+        .collect::<Vec<_>>();
+    if lib_targets.len() != 1 {
+        bail!(
+            "Expected crate to define 1 lib target, found {}",
+            lib_targets.len()
+        );
+    }
+    Ok(lib_targets.first().unwrap().name.clone())
 }
 
 fn resolve_root_package(metadata: &Metadata) -> Result<&Package> {
