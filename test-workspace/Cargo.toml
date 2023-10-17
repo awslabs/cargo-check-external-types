@@ -2,6 +2,7 @@
 members = [
     "external-lib",
     "test-crate",
+    "test-crate-custom-lib-name",
     "test-reexports-crate",
     "test-type-exported-from-hidden-module",
 ]

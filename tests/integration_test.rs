@@ -44,6 +44,14 @@ fn with_default_config() {
 }
 
 #[test]
+fn with_custom_lib_name() {
+    let expected_output =
+        fs::read_to_string("tests/default-config-custom-lib-name-expected-output.md").unwrap();
+    let actual_output = run_with_args("test-workspace/test-crate-custom-lib-name", &[]);
+    assert_str_eq!(expected_output, actual_output);
+}
+
+#[test]
 fn with_some_allowed_types() {
     let expected_output = fs::read_to_string("tests/allow-some-types-expected-output.md").unwrap();
     let actual_output = run_with_args(

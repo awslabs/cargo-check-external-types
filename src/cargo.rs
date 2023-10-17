@@ -18,8 +18,9 @@ struct CrateFormatVersion {
 
 /// Runs the `cargo rustdoc` command required to produce Rustdoc's JSON output with a nightly compiler.
 pub struct CargoRustDocJson {
-    /// Name of the crate (as specified in the Cargo.toml file)
-    crate_name: String,
+    /// Name of the lib target, by default this is the crate name but may be customized in the
+    /// `[lib]` section of the Cargo.toml file.
+    lib_name: String,
     /// Path of the crate to examine
     crate_path: PathBuf,
     /// Expected `target/` directory where the output will be
@@ -30,13 +31,13 @@ pub struct CargoRustDocJson {
 
 impl CargoRustDocJson {
     pub fn new(
-        crate_name: impl Into<String>,
+        lib_name: impl Into<String>,
         crate_path: impl Into<PathBuf>,
         target_path: impl Into<PathBuf>,
         features: Vec<String>,
     ) -> Self {
         CargoRustDocJson {
-            crate_name: crate_name.into(),
+            lib_name: lib_name.into(),
             crate_path: crate_path.into(),
             target_path: target_path.into(),
             features,
@@ -68,7 +69,7 @@ impl CargoRustDocJson {
             .target_path
             .canonicalize()
             .context(here!("failed to canonicalize {:?}", self.target_path))?
-            .join(format!("doc/{}.json", self.crate_name.replace('-', "_")));
+            .join(format!("doc/{}.json", self.lib_name.replace('-', "_")));
 
         let json = fs::read_to_string(output_file_name).context(here!())?;
         let format_version: CrateFormatVersion = serde_json::from_str(&json)
