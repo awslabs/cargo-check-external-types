@@ -9,7 +9,7 @@ use cargo_check_external_types::cargo::CargoRustDocJson;
 use cargo_check_external_types::error::{ErrorPrinter, ValidationError};
 use cargo_check_external_types::here;
 use cargo_check_external_types::visitor::Visitor;
-use cargo_metadata::{CargoOpt, Metadata};
+use cargo_metadata::{CargoOpt, Package, Metadata};
 use clap::Parser;
 use std::borrow::Cow;
 use std::fmt;
@@ -207,16 +207,7 @@ fn run_main() -> Result<(), Error> {
 }
 
 fn resolve_features(metadata: &Metadata) -> Result<Vec<String>> {
-    let root_package = metadata
-        .root_package()
-        .ok_or_else(|| {
-            let workspace_members = metadata.workspace_members.as_slice().iter().map(|id| id.to_string()).collect::<Vec<_>>().join("\n");
-            if !workspace_members.is_empty() {
-                anyhow!("it appears you're trying to run `cargo-check-external-types` on a workspace Cargo.toml; Instead, run it on one of the workspace member Cargo.tomls directly:\n{workspace_members}")
-            } else {
-                anyhow!("No root package found")
-            }
-        })?;
+    let root_package = resolve_root_package(metadata)?;
     if let Some(resolve) = &metadata.resolve {
         let root_node = resolve
             .nodes
@@ -227,6 +218,19 @@ fn resolve_features(metadata: &Metadata) -> Result<Vec<String>> {
     } else {
         bail!("Cargo metadata didn't have resolved nodes");
     }
+}
+
+fn resolve_root_package(metadata: &Metadata) -> Result<&Package> {
+    metadata
+        .root_package()
+        .ok_or_else(|| {
+            let workspace_members = metadata.workspace_members.as_slice().iter().map(|id| id.to_string()).collect::<Vec<_>>().join("\n");
+            if !workspace_members.is_empty() {
+                anyhow!("it appears you're trying to run `cargo-check-external-types` on a workspace Cargo.toml; Instead, run it on one of the workspace member Cargo.tomls directly:\n{workspace_members}")
+            } else {
+                anyhow!("No root package found")
+            }
+        })
 }
 
 #[cfg(test)]
