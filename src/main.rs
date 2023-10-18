@@ -6,11 +6,13 @@
 use anyhow::{anyhow, bail};
 use anyhow::{Context, Result};
 use cargo_check_external_types::cargo::CargoRustDocJson;
+use cargo_check_external_types::config::Config;
 use cargo_check_external_types::error::{ErrorPrinter, ValidationError};
 use cargo_check_external_types::here;
 use cargo_check_external_types::visitor::Visitor;
 use cargo_metadata::{CargoOpt, Metadata, Package};
 use clap::Parser;
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
@@ -121,13 +123,6 @@ fn run_main() -> Result<(), Error> {
             .init();
     }
 
-    let config = if let Some(config_path) = &args.config {
-        let contents = fs::read_to_string(config_path).context("failed to read config file")?;
-        toml::from_str(&contents).context("failed to parse config file")?
-    } else {
-        Default::default()
-    };
-
     let mut cargo_metadata_cmd = cargo_metadata::MetadataCommand::new();
     if args.all_features {
         cargo_metadata_cmd.features(CargoOpt::AllFeatures);
@@ -153,6 +148,15 @@ fn run_main() -> Result<(), Error> {
             .context(here!())?
     };
     let cargo_metadata = cargo_metadata_cmd.exec().context(here!())?;
+
+    let config = if let Some(config_path) = &args.config {
+        let contents = fs::read_to_string(config_path).context("failed to read config file")?;
+        toml::from_str(&contents).context("failed to parse config file")?
+    } else {
+        resolve_config(&cargo_metadata)
+            .context("failed to parse config from Cargo.toml metadata")?
+    };
+
     let cargo_features = resolve_features(&cargo_metadata)?;
     let cargo_lib_name = resolve_lib_name(&cargo_metadata)?;
 
@@ -200,6 +204,28 @@ fn run_main() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn resolve_config(metadata: &Metadata) -> Result<Config> {
+    let crate_metadata = match serde_json::from_value::<HashMap<String, serde_json::Value>>(
+        resolve_root_package(metadata)?.metadata.clone(),
+    ) {
+        Ok(m) => m,
+        // We avoid using ? on the serde_json::from_value because when the metadata is not provided
+        // this will err trying to unmarshal a null value into a map. In this instance we want to
+        // use the default config.
+        Err(_) => return Ok(Default::default()),
+    };
+
+    Ok(
+        if let Some(our_metadata) = crate_metadata.get(env!("CARGO_CRATE_NAME")) {
+            // Here we do use ? to propagate the error from the unmarshal - it would indicate
+            // the metadata config is present, but invalid.
+            serde_json::from_value(our_metadata.clone())?
+        } else {
+            Default::default()
+        },
+    )
 }
 
 fn resolve_features(metadata: &Metadata) -> Result<Vec<String>> {
