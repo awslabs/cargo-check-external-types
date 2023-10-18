@@ -62,6 +62,29 @@ fn with_some_allowed_types() {
 }
 
 #[test]
+fn with_some_allowed_types_in_metadata() {
+    let expected_output =
+        fs::read_to_string("tests/allow-some-types-metadata-expected-output.md").unwrap();
+    let actual_output = run_with_args(
+        "test-workspace/test-crate-metadata-config",
+        &[], // We provide no config here so the crate's Cargo.toml metadata is used.
+    );
+    assert_str_eq!(expected_output, actual_output);
+}
+
+#[test]
+fn with_some_allowed_types_explicit_config_file() {
+    let actual_output = run_with_args(
+        "test-workspace/test-crate-metadata-config",
+        // Because we provide an explicit config file, we expect it to take precedence over
+        // the Cargo.toml metadata.
+        &["--config", "../../tests/allow-some-types.toml"],
+    );
+    // The config file allows all of the types, so we expect no output.
+    assert_str_eq!("", actual_output);
+}
+
+#[test]
 fn with_output_format_markdown_table() {
     let expected_output =
         fs::read_to_string("tests/output-format-markdown-table-expected-output.md").unwrap();

@@ -48,8 +48,15 @@ cargo +nightly check-external-types
 ```
 
 This will produce errors if any external types are used in a public API at all. That's not terribly useful
-on its own, so the tool can be given a config file to allow certain types. For example, we can allow
-any type in `bytes` with:
+on its own, so the tool can be given configuration in your crate's `Cargo.toml` to allow certain types. 
+For example, we can allow any type in `bytes` by adding this metadata to your crate's `Cargo.toml`:
+
+```toml
+[package.metadata.cargo_check_external_types]
+allowed_external_types = ["bytes::*"]
+```
+
+Or, if you'd prefer, you can create a separate configuration file with the content:
 
 ```toml
 allowed_external_types = [
@@ -63,6 +70,9 @@ run the command with:
 ```bash
 cargo +nightly check-external-types --config external-types.toml
 ```
+
+If both a `Cargo.toml` package metadata section and a `--config` flag are provided, the `--config` flag will be used
+instead of the package metadata.
 
 ### Caveats
 
