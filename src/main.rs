@@ -65,6 +65,9 @@ struct CheckExternalTypesArgs {
     /// Path to the Cargo manifest
     #[clap(long)]
     manifest_path: Option<PathBuf>,
+    /// Target triple
+    #[clap(long)]
+    target: Option<String>,
 
     /// Path to config toml to read
     #[clap(long)]
@@ -166,6 +169,7 @@ fn run_main() -> Result<(), Error> {
         crate_path,
         &cargo_metadata.target_directory,
         cargo_features,
+        args.target.clone(),
     )
     .run()
     .context(here!())?;
@@ -283,6 +287,7 @@ mod arg_parse_tests {
                 no_default_features: false,
                 features: None,
                 manifest_path: None,
+                target: None,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -299,6 +304,7 @@ mod arg_parse_tests {
                 no_default_features: false,
                 features: None,
                 manifest_path: None,
+                target: None,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -315,6 +321,7 @@ mod arg_parse_tests {
                 no_default_features: true,
                 features: None,
                 manifest_path: None,
+                target: None,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -332,6 +339,7 @@ mod arg_parse_tests {
                 no_default_features: false,
                 features: Some(vec!["foo".into(), "bar".into()]),
                 manifest_path: None,
+                target: None,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -349,6 +357,7 @@ mod arg_parse_tests {
                 no_default_features: false,
                 features: None,
                 manifest_path: Some("test-path".into()),
+                target: None,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -364,6 +373,29 @@ mod arg_parse_tests {
     }
 
     #[test]
+    fn target() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                target: Some("x86_64-unknown-linux-gnu".into()),
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+            }),
+            Args::try_parse_from([
+                "cargo",
+                "check-external-types",
+                "--target",
+                "x86_64-unknown-linux-gnu"
+            ])
+            .unwrap()
+        );
+    }
+
+    #[test]
     fn verbose() {
         assert_eq!(
             Args::CheckExternalTypes(CheckExternalTypesArgs {
@@ -371,6 +403,7 @@ mod arg_parse_tests {
                 no_default_features: false,
                 features: None,
                 manifest_path: None,
+                target: None,
                 config: None,
                 verbose: true,
                 output_format: OutputFormat::Errors,
@@ -387,6 +420,7 @@ mod arg_parse_tests {
                 no_default_features: false,
                 features: None,
                 manifest_path: None,
+                target: None,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::MarkdownTable,
