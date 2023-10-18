@@ -27,6 +27,8 @@ pub struct CargoRustDocJson {
     target_path: PathBuf,
     /// Features to enable
     features: Vec<String>,
+    /// Target triple
+    target: Option<String>,
 }
 
 impl CargoRustDocJson {
@@ -35,12 +37,14 @@ impl CargoRustDocJson {
         crate_path: impl Into<PathBuf>,
         target_path: impl Into<PathBuf>,
         features: Vec<String>,
+        target: Option<String>,
     ) -> Self {
         CargoRustDocJson {
             lib_name: lib_name.into(),
             crate_path: crate_path.into(),
             target_path: target_path.into(),
             features,
+            target,
         }
     }
 
@@ -52,6 +56,9 @@ impl CargoRustDocJson {
         if !self.features.is_empty() {
             command.arg("--no-default-features").arg("--features");
             command.arg(&self.features.join(","));
+        }
+        if let Some(target) = &self.target {
+            command.arg("--target").arg(target);
         }
         command
             .arg("--")
@@ -65,11 +72,14 @@ impl CargoRustDocJson {
             .context(here!("failed to run nightly rustdoc"))?;
         handle_failure("rustdoc", &output)?;
 
-        let output_file_name = self
+        let mut output_file_name = self
             .target_path
             .canonicalize()
-            .context(here!("failed to canonicalize {:?}", self.target_path))?
-            .join(format!("doc/{}.json", self.lib_name.replace('-', "_")));
+            .context(here!("failed to canonicalize {:?}", self.target_path))?;
+        if let Some(target) = &self.target {
+            output_file_name.push(target);
+        }
+        output_file_name.push(format!("doc/{}.json", self.lib_name.replace('-', "_")));
 
         let json = fs::read_to_string(output_file_name).context(here!())?;
         let format_version: CrateFormatVersion = serde_json::from_str(&json)
