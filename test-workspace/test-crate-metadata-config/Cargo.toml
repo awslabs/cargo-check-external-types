@@ -1,0 +1,13 @@
+[package]
+name = "test-crate-metadata-config"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+external-lib = { path = "../external-lib" }
+
+[package.metadata.cargo_check_external_types]
+# We allow external_lib::SomeStruct, but not external_lib::SimpleNewType, and so expect findings
+# to be produced for that type.
+allowed_external_types = ["external_lib::SomeStruct"]
