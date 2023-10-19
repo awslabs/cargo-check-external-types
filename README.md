@@ -20,11 +20,11 @@ Example Output
 
 The test suite has a Rust library that [relies on some external types](test-workspace/test-crate/src/lib.rs).
 When the tool is run against this library without any configuration,
-[it emits errors](tests/default-config-expected-output.txt)
+[it emits errors](tests/default-config-expected-output.md)
 for each occurrence of an external type in the public API.
 
 When [a config file](tests/allow-some-types.toml) is provided,
-the allowed external types [no longer show up in the output](tests/allow-some-types-expected-output.txt).
+the allowed external types [no longer show up in the output](tests/allow-some-types-expected-output.md).
 
 When the output format is set to `markdown-table`, then
 a [table of external types](tests/output-format-markdown-table-expected-output.md) is output.
