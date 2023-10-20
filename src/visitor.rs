@@ -16,8 +16,7 @@ use rustdoc_types::{
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Once;
-use tracing::{debug, warn};
-use tracing_attributes::instrument;
+use tracing::{debug, instrument, warn};
 
 macro_rules! unstable_rust_feature {
     ($name:expr, $documentation_uri:expr) => {
