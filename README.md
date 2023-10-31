@@ -2,7 +2,7 @@ cargo-check-external-types
 ==========================
 
 `cargo-check-external-types` is a static analysis tool for Rust library authors
-to set and verify which types from other libraries are allowed to be are exposed in
+to set and verify which types from other libraries are allowed to be exposed in
 their public API. This is useful for ensuring that a breaking change to a dependency
 doesn't force a breaking change in the library that's using it.
 
