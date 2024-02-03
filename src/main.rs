@@ -275,6 +275,17 @@ fn resolve_root_package(metadata: &Metadata) -> Result<&Package> {
 }
 
 #[cfg(test)]
+mod cli_tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        Args::command().debug_assert();
+    }
+}
+
+#[cfg(test)]
 mod arg_parse_tests {
     use super::*;
     use clap::Parser;
