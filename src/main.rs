@@ -54,10 +54,10 @@ impl FromStr for OutputFormat {
 #[derive(clap::Args, Debug, Eq, PartialEq)]
 struct CheckExternalTypesArgs {
     /// Enables all crate features
-    #[clap(long, conflicts_with = "no-default-features")]
+    #[clap(long, conflicts_with = "no_default_features")]
     all_features: bool,
     /// Disables default features
-    #[clap(long, conflicts_with = "all-features")]
+    #[clap(long, conflicts_with = "all_features")]
     no_default_features: bool,
     /// Comma delimited list of features to enable in the crate
     #[clap(long, use_value_delimiter = true)]
