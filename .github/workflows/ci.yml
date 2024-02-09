@@ -155,7 +155,7 @@ jobs:
       - name: Run
         run: |
           cargo install --locked --path cargo-check-external-types
-          cargo check-external-types --all-features --config tokio/tokio/external-types.toml --manifest-path tokio/tokio/Cargo.toml
+          cargo check-external-types --all-features --manifest-path tokio/tokio/Cargo.toml
         env:
           # Intentionally don't set flags
           RUSTDOCFLAGS:
