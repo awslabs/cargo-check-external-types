@@ -21,7 +21,7 @@ use std::str::FromStr;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum OutputFormat {
     Errors,
     MarkdownTable,
@@ -54,10 +54,10 @@ impl FromStr for OutputFormat {
 #[derive(clap::Args, Debug, Eq, PartialEq)]
 struct CheckExternalTypesArgs {
     /// Enables all crate features
-    #[clap(long, conflicts_with = "no-default-features")]
+    #[clap(long, conflicts_with = "no_default_features")]
     all_features: bool,
     /// Disables default features
-    #[clap(long, conflicts_with = "all-features")]
+    #[clap(long, conflicts_with = "all_features")]
     no_default_features: bool,
     /// Comma delimited list of features to enable in the crate
     #[clap(long, use_value_delimiter = true)]
@@ -272,6 +272,17 @@ fn resolve_root_package(metadata: &Metadata) -> Result<&Package> {
                 anyhow!("No root package found")
             }
         })
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        Args::command().debug_assert();
+    }
 }
 
 #[cfg(test)]
