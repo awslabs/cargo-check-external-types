@@ -54,34 +54,34 @@ impl FromStr for OutputFormat {
 #[derive(clap::Args, Debug, Eq, PartialEq)]
 struct CheckExternalTypesArgs {
     /// Enables all crate features
-    #[clap(long, conflicts_with = "no_default_features")]
+    #[arg(long, conflicts_with = "no_default_features")]
     all_features: bool,
     /// Disables default features
-    #[clap(long, conflicts_with = "all_features")]
+    #[arg(long, conflicts_with = "all_features")]
     no_default_features: bool,
     /// Comma delimited list of features to enable in the crate
-    #[clap(long, use_value_delimiter = true)]
+    #[arg(long, value_delimiter = ',')]
     features: Option<Vec<String>>,
     /// Path to the Cargo manifest
-    #[clap(long)]
+    #[arg(long)]
     manifest_path: Option<PathBuf>,
     /// Target triple
-    #[clap(long)]
+    #[arg(long)]
     target: Option<String>,
 
     /// Path to config toml to read
-    #[clap(long)]
+    #[arg(long)]
     config: Option<PathBuf>,
     /// Enable verbose output for debugging
-    #[clap(short, long)]
+    #[arg(short, long)]
     verbose: bool,
     /// Format to output results in
-    #[clap(long, default_value_t = OutputFormat::Errors)]
+    #[arg(long, default_value_t = OutputFormat::Errors)]
     output_format: OutputFormat,
 }
 
 #[derive(Parser, Debug, Eq, PartialEq)]
-#[clap(author, version, about, bin_name = "cargo")]
+#[command(author, version, about, bin_name = "cargo")]
 enum Args {
     CheckExternalTypes(CheckExternalTypesArgs),
 }
