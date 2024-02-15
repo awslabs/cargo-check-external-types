@@ -32,7 +32,7 @@ enum VisibilityCheck {
     /// Check to make sure the item is public before visiting it
     Default,
     /// Assume the item is public and examine it.
-    /// This is useful for visiting private items that are publically re-exported
+    /// This is useful for visiting private items that are publicly re-exported
     AssumePublic,
 }
 

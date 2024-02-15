@@ -14,7 +14,7 @@ env:
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
   RUST_BACKTRACE: 1
-  rust_version: nightly-2023-10-10
+  rust_version: nightly-2024-02-07
 
 jobs:
   fmt:
@@ -132,6 +132,7 @@ jobs:
           cargo check-external-types --all-features --config aws-types/external-types.toml --manifest-path aws-types/Cargo.toml
         env:
           # Intentionally don't set flags
+          RUSTFLAGS:
           RUSTDOCFLAGS:
 
   smoketest-tokio:
