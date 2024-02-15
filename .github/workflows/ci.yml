@@ -132,6 +132,7 @@ jobs:
           cargo check-external-types --all-features --config aws-types/external-types.toml --manifest-path aws-types/Cargo.toml
         env:
           # Intentionally don't set flags
+          RUSTFLAGS:
           RUSTDOCFLAGS:
 
   smoketest-tokio:
