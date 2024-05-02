@@ -402,6 +402,12 @@ impl Visitor {
             }
             Type::Generic(_) => {}
             Type::Primitive(_) => {}
+            Type::Pat { .. } => {
+                panic!(
+                    "Pattern types are unstable and rustc internal rust-lang#120131. \
+                     They are unsuported by cargo-check-external-types."
+                )
+            }
             Type::FunctionPointer(fp) => {
                 self.visit_fn_decl(path, &fp.decl)?;
                 self.visit_generic_param_defs(path, &fp.generic_params)?;
