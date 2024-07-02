@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
- #![feature(never_type)]
-
+#![feature(never_type)]
 // no_std makes reading the RustDoc-generated JSON thousands of lines smaller, and therefore easier to
 // manually debug.
 #![no_std]
