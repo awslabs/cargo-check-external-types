@@ -55,7 +55,7 @@ impl CargoRustDocJson {
         command.current_dir(&self.crate_path).arg("rustdoc");
         if !self.features.is_empty() {
             command.arg("--no-default-features").arg("--features");
-            command.arg(&self.features.join(","));
+            command.arg(self.features.join(","));
         }
         if let Some(target) = &self.target {
             command.arg("--target").arg(target);
