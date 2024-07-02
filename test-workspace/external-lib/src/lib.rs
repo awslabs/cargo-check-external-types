@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+ #![feature(never_type)]
+
 // no_std makes reading the RustDoc-generated JSON thousands of lines smaller, and therefore easier to
 // manually debug.
 #![no_std]
@@ -38,6 +40,13 @@ pub trait AssociatedGenericTrait {
 
 pub struct SimpleNewType(pub u32);
 
+impl SimpleTrait for ! {
+    fn something(&self) -> u32 {
+        0
+    }
+}
+
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ReprCType {

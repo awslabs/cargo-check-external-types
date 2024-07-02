@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#![feature(generic_associated_types)]
 #![allow(dead_code)]
 
 //! This crate is used to test the cargo-check-external-types by exercising the all possible
