@@ -22,7 +22,9 @@ mod hidden_module {
     }
     pub use external_lib::SimpleNewType;
 
-    pub fn inner_fn() -> external_lib::SimpleNewType {}
+    pub fn inner_fn() -> external_lib::SimpleNewType {
+        SimpleNewType(5)
+    }
 
     pub enum InnerEnum {
         SimpleNewType(SimpleNewType),

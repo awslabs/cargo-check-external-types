@@ -149,9 +149,9 @@ impl Visitor {
                 self.visit_generic_bounds(&path, bounds).context(here!())?;
                 self.visit_generics(&path, generics).context(here!())?;
             }
-            ItemEnum::Constant(constant) => {
+            ItemEnum::Constant { type_, .. } => {
                 path.push(ComponentType::Constant, item);
-                self.visit_type(&path, &ErrorLocation::Constant, &constant.type_).context(here!())?;
+                self.visit_type(&path, &ErrorLocation::Constant, type_).context(here!())?;
             }
             ItemEnum::Enum(enm) => {
                 path.push(ComponentType::Enum, item);
