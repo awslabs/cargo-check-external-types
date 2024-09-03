@@ -223,7 +223,6 @@ impl Visitor {
                     }
                 }
             }
-            ItemEnum::OpaqueTy(_) => unstable_rust_feature!("type_alias_impl_trait", "https://doc.rust-lang.org/beta/unstable-book/language-features/type-alias-impl-trait.html"),
             ItemEnum::Static(sttc) => {
                 path.push(ComponentType::Static, item);
                 self.visit_type(&path, &ErrorLocation::Static, &sttc.type_).context(here!())?;
@@ -439,6 +438,7 @@ impl Visitor {
                             self.visit_generic_param_defs(path, generic_params)?;
                         }
                         GenericBound::Outlives(_) => {}
+                        GenericBound::Use(_) => {},
                     }
                 }
             }
@@ -569,12 +569,16 @@ impl Visitor {
                     self.visit_generic_bounds(path, bounds)?;
                     self.visit_generic_param_defs(path, generic_params)?;
                 }
-                WherePredicate::RegionPredicate { bounds, .. } => {
-                    self.visit_generic_bounds(path, bounds)?;
-                }
                 WherePredicate::EqPredicate { lhs, .. } => {
                     self.visit_type(path, &ErrorLocation::WhereBound, lhs)
                         .context(here!())?;
+                }
+                WherePredicate::LifetimePredicate { outlives, .. } => {
+                    let bounds: Vec<_> = outlives
+                        .into_iter()
+                        .map(|s| GenericBound::Outlives(s.to_owned()))
+                        .collect();
+                    self.visit_generic_bounds(path, &bounds)?;
                 }
             }
         }
