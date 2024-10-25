@@ -560,12 +560,13 @@ impl Visitor {
         for where_pred in &generics.where_predicates {
             match where_pred {
                 WherePredicate::BoundPredicate {
-                    type_,
+                    type_: _,
                     bounds,
                     generic_params,
                 } => {
-                    self.visit_type(path, &ErrorLocation::WhereBound, type_)
-                        .context(here!())?;
+                    // https://github.com/taiki-e/pin-project-lite/issues/86#issuecomment-2438300474
+                    // self.visit_type(path, &ErrorLocation::WhereBound, type_)
+                    //     .context(here!())?;
                     self.visit_generic_bounds(path, bounds)?;
                     self.visit_generic_param_defs(path, generic_params)?;
                 }
