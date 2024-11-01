@@ -58,7 +58,7 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
 61 |     pub fn something(_one: &SomeStruct) {}
    |     ^------------------------------------^
    |
-   = in argument named `_one` of `test_crate::something`
+   = in argument named `_one` of `test_crate::something::something`
 
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
   --> test-crate/src/lib.rs:66:5
