@@ -11,11 +11,10 @@ use anyhow::{anyhow, Context, Result};
 use rustdoc_types::{
     Crate, FunctionSignature, GenericArgs, GenericBound, GenericParamDef, GenericParamDefKind,
     Generics, Id, Item, ItemEnum, ItemSummary, Path as RustDocPath, Struct, StructKind, Term,
-    Trait, Type, Union, Use, Variant, VariantKind, Visibility, WherePredicate,
+    Trait, Type, Union, Variant, VariantKind, Visibility, WherePredicate,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Once;
 use tracing::{debug, instrument, warn};
 
 macro_rules! unstable_rust_feature {
@@ -530,17 +529,15 @@ impl Visitor {
     #[instrument(level = "debug", skip(self, path, bounds), fields(path = %path))]
     fn visit_generic_bounds(&self, path: &Path, bounds: &[GenericBound]) -> Result<()> {
         for bound in bounds {
-            match bound {
-                GenericBound::TraitBound {
-                    trait_,
-                    generic_params,
-                    ..
-                } => {
-                    self.check_rustdoc_path(path, &ErrorLocation::TraitBound, trait_)
-                        .context(here!())?;
-                    self.visit_generic_param_defs(path, generic_params)?;
-                }
-                _ => {}
+            if let GenericBound::TraitBound {
+                trait_,
+                generic_params,
+                ..
+            } = bound
+            {
+                self.check_rustdoc_path(path, &ErrorLocation::TraitBound, trait_)
+                    .context(here!())?;
+                self.visit_generic_param_defs(path, generic_params)?;
             }
         }
         Ok(())
@@ -640,7 +637,7 @@ impl Visitor {
         what: &ErrorLocation,
         rustdoc_path: &RustDocPath,
     ) -> Result<()> {
-        self.check_external(path, what, &rustdoc_path.id, None)
+        self.check_external(path, what, &rustdoc_path.id)
             .context(here!())?;
         if let Some(generic_args) = &rustdoc_path.args {
             self.visit_generic_args(path, generic_args.as_ref())
@@ -649,13 +646,7 @@ impl Visitor {
         Ok(())
     }
 
-    fn check_external(
-        &self,
-        path: &Path,
-        what: &ErrorLocation,
-        id: &Id,
-        use_: Option<&Use>,
-    ) -> Result<()> {
+    fn check_external(&self, path: &Path, what: &ErrorLocation, id: &Id) -> Result<()> {
         if let Ok(type_name) = self.type_name(id) {
             if !self.config.allows_type(&self.root_crate_name, &type_name) {
                 self.add_error(ValidationError::unapproved_external_type_ref(
@@ -669,22 +660,9 @@ impl Visitor {
         // Crates like `pin_project` do some shenanigans to create and reference types that don't end up
         // in the doc index, but that should only happen within the root crate.
         else if self.in_external_crate(id) {
-            match use_ {
-                Some(use_) => {
-                    let first_hidden_module_in_path =
-                        infer_first_hidden_module_in_import_source(&use_.source, &self.index);
-                    self.add_error(ValidationError::hidden_module(
-                        use_.name.to_owned(),
-                        &what,
-                        path.to_string(),
-                        path.last_span(),
-                        first_hidden_module_in_path,
-                    ));
-                }
-                None => {
-                    unreachable!("An item referenced another item from an external crate that is not in the index.");
-                }
-            }
+            unreachable!(
+                "An item referenced another item from an external crate that is not in the index."
+            );
         }
         Ok(())
     }
