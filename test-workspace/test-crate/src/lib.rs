@@ -156,3 +156,10 @@ impl AssocConstStruct {
 
     pub const OTHER_CONST: SimpleNewType = SimpleNewType(5);
 }
+
+pub fn hidden_arg(arg0: HiddenStruct) {
+    unimplemented!()
+}
+
+#[doc(hidden)]
+pub struct HiddenStruct;

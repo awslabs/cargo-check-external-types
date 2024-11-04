@@ -9,13 +9,12 @@ use crate::path::{ComponentType, Path};
 use crate::{bug_panic, here};
 use anyhow::{anyhow, Context, Result};
 use rustdoc_types::{
-    Crate, FnDecl, GenericArgs, GenericBound, GenericParamDef, GenericParamDefKind, Generics, Id,
-    Item, ItemEnum, ItemSummary, Path as RustDocPath, Struct, StructKind, Term, Trait, Type, Union,
-    Variant, VariantKind, Visibility, WherePredicate,
+    Crate, FunctionSignature, GenericArgs, GenericBound, GenericParamDef, GenericParamDefKind,
+    Generics, Id, Item, ItemEnum, ItemSummary, Path as RustDocPath, Struct, StructKind, Term,
+    Trait, Type, Union, Variant, VariantKind, Visibility, WherePredicate,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Once;
 use tracing::{debug, instrument, warn};
 
 macro_rules! unstable_rust_feature {
@@ -139,72 +138,85 @@ impl Visitor {
             }
             ItemEnum::AssocType {
                 bounds,
-                default,
+                type_,
                 generics,
             } => {
                 path.push(ComponentType::AssocType, item);
-                if let Some(typ) = default {
-                    self.visit_type(&path, &ErrorLocation::AssocType, typ).context(here!())?;
+                if let Some(typ) = type_ {
+                    self.visit_type(&path, &ErrorLocation::AssocType, typ)
+                        .context(here!())?;
                 }
                 self.visit_generic_bounds(&path, bounds).context(here!())?;
                 self.visit_generics(&path, generics).context(here!())?;
             }
             ItemEnum::Constant { type_, .. } => {
                 path.push(ComponentType::Constant, item);
-                self.visit_type(&path, &ErrorLocation::Constant, type_).context(here!())?;
+                self.visit_type(&path, &ErrorLocation::Constant, type_)
+                    .context(here!())?;
             }
             ItemEnum::Enum(enm) => {
                 path.push(ComponentType::Enum, item);
                 self.visit_generics(&path, &enm.generics).context(here!())?;
                 self.visit_impls(&path, &enm.impls).context(here!())?;
                 for id in &enm.variants {
-                    self.visit_item(&path, self.item(id).context(here!())?, VisibilityCheck::Default).context(here!())?;
+                    self.visit_item(
+                        &path,
+                        self.item(id).context(here!())?,
+                        VisibilityCheck::Default,
+                    )
+                    .context(here!())?;
                 }
             }
-            ItemEnum::ForeignType => unstable_rust_feature!(
+            ItemEnum::ExternType => unstable_rust_feature!(
                 "extern_types",
                 "https://doc.rust-lang.org/beta/unstable-book/language-features/extern-types.html"
             ),
             ItemEnum::Function(function) => {
                 path.push(ComponentType::Function, item);
-                self.visit_fn_decl(&path, &function.decl).context(here!())?;
-                self.visit_generics(&path, &function.generics).context(here!())?;
+                self.visit_fn_sig(&path, &function.sig).context(here!())?;
+                self.visit_generics(&path, &function.generics)
+                    .context(here!())?;
             }
-            ItemEnum::Import(import) => {
-                // We only want to update the path once. When the `target_id` is in the root crate,
-                // we don't want to update the path unless the `target_id` isn't present in the index.
-                let update_path = Once::new();
-                if let Some(target_id) = &import.id {
-                    if self.in_root_crate(target_id) {
-                        // Override the visibility check for re-exported items. Otherwise,
-                        // it will use the visibility of the item being re-exported, which,
-                        // if it's private, will result in no errors about external types
-                        // being emitted from it.
-                        match self.item(target_id).context(here!()) {
-                            Ok(item) => self.visit_item(&path, item, VisibilityCheck::AssumePublic)?,
-                            // When an item in the root crate can't be resolved, it's due to it being declared in a
-                            // #[doc(hidden)] module before being reexported publicly. We log a warning to notify
-                            // the user that we couldn't check this type for external types.
-                            Err(_) => {
-                                update_path.call_once(|| {
-                                    path.push_raw(ComponentType::ReExport, &import.name, item.span.as_ref());
-                                });
-                                let first_hidden_module_in_path = infer_first_hidden_module_in_import_source(&import.source, &self.index);
-                                self.add_error(ValidationError::hidden_module(
-                                    import.name.clone(),
+            ItemEnum::Use(use_) => {
+                path.push_raw(ComponentType::ReExport, &use_.name, item.span.as_ref());
+                // look at the type the `use` statement is referencing
+                if let Some(target_id) = &use_.id {
+                    // if the item is in the index, check to see if it's in the
+                    // root crate.
+                    if let Ok(item) = self.item(target_id).context(here!()) {
+                        if self.in_root_crate(target_id) {
+                            // If yes, then visit it.
+                            self.visit_item(&path, item, VisibilityCheck::AssumePublic)?
+                        }
+                    } else {
+                        // If the item isn't in the index, then it's an external
+                        // type. Check if it's allowed by the config. If it's
+                        // not referenced in `paths` then it's assumed to be an
+                        // external hidden module.
+                        if let Ok(type_name) = self.type_name(target_id) {
+                            if !self.config.allows_type(&self.root_crate_name, &type_name) {
+                                self.add_error(ValidationError::unapproved_external_type_ref(
+                                    type_name,
                                     &ErrorLocation::ReExport,
                                     path.to_string(),
                                     path.last_span(),
-                                    first_hidden_module_in_path,
                                 ));
                             }
-                        };
+                        } else {
+                            let first_hidden_module_in_path =
+                                infer_first_hidden_module_in_import_source(
+                                    &use_.source,
+                                    &self.index,
+                                );
+                            self.add_error(ValidationError::hidden_module(
+                                use_.name.clone(),
+                                &ErrorLocation::ReExport,
+                                path.to_string(),
+                                path.last_span(),
+                                first_hidden_module_in_path,
+                            ));
+                        }
                     }
-                    update_path.call_once(|| {
-                        path.push_raw(ComponentType::ReExport, &import.name, item.span.as_ref());
-                    });
-                    self.check_external(&path, &ErrorLocation::ReExport, target_id)
-                        .context(here!())?;
                 }
             }
             ItemEnum::Module(module) => {
@@ -219,14 +231,16 @@ impl Visitor {
                     // for re-exports since it includes the correct span where the re-export occurs,
                     // and we don't want to examine the innards of the re-export.
                     if module_item.crate_id == self.root_crate_id {
-                        self.visit_item(&path, module_item, VisibilityCheck::Default).context(here!())?;
+                        self.visit_item(&path, module_item, VisibilityCheck::Default)
+                            .context(here!())?;
                     }
                 }
             }
-            ItemEnum::OpaqueTy(_) => unstable_rust_feature!("type_alias_impl_trait", "https://doc.rust-lang.org/beta/unstable-book/language-features/type-alias-impl-trait.html"),
+            // ItemEnum::OpaqueTy(_) => unstable_rust_feature!("type_alias_impl_trait", "https://doc.rust-lang.org/beta/unstable-book/language-features/type-alias-impl-trait.html"),
             ItemEnum::Static(sttc) => {
                 path.push(ComponentType::Static, item);
-                self.visit_type(&path, &ErrorLocation::Static, &sttc.type_).context(here!())?;
+                self.visit_type(&path, &ErrorLocation::Static, &sttc.type_)
+                    .context(here!())?;
             }
             ItemEnum::Struct(strct) => {
                 path.push(ComponentType::Struct, item);
@@ -245,7 +259,8 @@ impl Visitor {
                 path.push(ComponentType::TypeAlias, item);
                 self.visit_type(&path, &ErrorLocation::TypeAlias, &alias.type_)
                     .context(here!())?;
-                self.visit_generics(&path, &alias.generics).context(here!())?;
+                self.visit_generics(&path, &alias.generics)
+                    .context(here!())?;
             }
             ItemEnum::TraitAlias(_) => unstable_rust_feature!(
                 "trait_alias",
@@ -293,9 +308,9 @@ impl Visitor {
             StructKind::Tuple(members) => members.iter().flatten().cloned().collect(),
             StructKind::Plain {
                 fields,
-                fields_stripped,
+                has_stripped_fields,
             } => {
-                if *fields_stripped {
+                if *has_stripped_fields {
                     self.add_error(ValidationError::fields_stripped(path));
                 }
                 fields.clone()
@@ -375,7 +390,7 @@ impl Visitor {
     }
 
     #[instrument(level = "debug", skip(self, path, decl), fields(path = %path))]
-    fn visit_fn_decl(&self, path: &Path, decl: &FnDecl) -> Result<()> {
+    fn visit_fn_sig(&self, path: &Path, decl: &FunctionSignature) -> Result<()> {
         for (index, (name, typ)) in decl.inputs.iter().enumerate() {
             if index == 0 && name == "self" {
                 continue;
@@ -409,7 +424,7 @@ impl Visitor {
                 )
             }
             Type::FunctionPointer(fp) => {
-                self.visit_fn_decl(path, &fp.decl)?;
+                self.visit_fn_sig(path, &fp.sig)?;
                 self.visit_generic_param_defs(path, &fp.generic_params)?;
             }
             Type::Tuple(types) => {
@@ -438,6 +453,7 @@ impl Visitor {
                             self.check_rustdoc_path(path, what, trait_)?;
                             self.visit_generic_param_defs(path, generic_params)?;
                         }
+                        GenericBound::Use(_) => {}
                         GenericBound::Outlives(_) => {}
                     }
                 }
@@ -471,7 +487,7 @@ impl Visitor {
     #[instrument(level = "debug", skip(self, path, args), fields(path = %path))]
     fn visit_generic_args(&self, path: &Path, args: &GenericArgs) -> Result<()> {
         match args {
-            GenericArgs::AngleBracketed { args, bindings } => {
+            GenericArgs::AngleBracketed { args, constraints } => {
                 for arg in args {
                     match arg {
                         rustdoc_types::GenericArg::Type(typ) => {
@@ -482,15 +498,15 @@ impl Visitor {
                         | rustdoc_types::GenericArg::Infer => {}
                     }
                 }
-                for binding in bindings {
-                    match &binding.binding {
-                        rustdoc_types::TypeBindingKind::Equality(term) => {
+                for constraint in constraints {
+                    match &constraint.binding {
+                        rustdoc_types::AssocItemConstraintKind::Equality(term) => {
                             if let Term::Type(typ) = term {
                                 self.visit_type(path, &ErrorLocation::GenericDefaultBinding, typ)
                                     .context(here!())?;
                             }
                         }
-                        rustdoc_types::TypeBindingKind::Constraint(bounds) => {
+                        rustdoc_types::AssocItemConstraintKind::Constraint(bounds) => {
                             self.visit_generic_bounds(path, bounds)?;
                         }
                     }
@@ -532,9 +548,7 @@ impl Visitor {
         for param in params {
             match &param.kind {
                 GenericParamDefKind::Type {
-                    bounds,
-                    default,
-                    synthetic: _,
+                    bounds, default, ..
                 } => {
                     self.visit_generic_bounds(path, bounds)?;
                     if let Some(typ) = default {
@@ -570,8 +584,12 @@ impl Visitor {
                     self.visit_generic_bounds(path, bounds)?;
                     self.visit_generic_param_defs(path, generic_params)?;
                 }
-                WherePredicate::RegionPredicate { bounds, .. } => {
-                    self.visit_generic_bounds(path, bounds)?;
+                WherePredicate::LifetimePredicate { outlives, .. } => {
+                    let bounds: Vec<_> = outlives
+                        .iter()
+                        .map(|it| GenericBound::Outlives(it.clone()))
+                        .collect();
+                    self.visit_generic_bounds(path, &bounds)?;
                 }
                 WherePredicate::EqPredicate { lhs, .. } => {
                     self.visit_type(path, &ErrorLocation::WhereBound, lhs)
@@ -597,9 +615,9 @@ impl Visitor {
             }
             VariantKind::Struct {
                 fields,
-                fields_stripped,
+                has_stripped_fields,
             } => {
-                assert!(!fields_stripped, "rustdoc is instructed to document private items, so `fields_stripped` should always be `false`");
+                assert!(!has_stripped_fields, "rustdoc is instructed to document private items, so `fields_stripped` should always be `false`");
                 for id in fields {
                     self.visit_item(
                         path,
@@ -638,11 +656,12 @@ impl Visitor {
                     path.last_span(),
                 ));
             }
-        }
-        // Crates like `pin_project` do some shenanigans to create and reference types that don't end up
-        // in the doc index, but that should only happen within the root crate.
-        else if !id.0.starts_with(&format!("{}:", self.root_crate_id)) {
-            unreachable!("A type is referencing another type that is not in the index, and that type is from another crate.");
+        } else if !self.in_root_crate(id) {
+            self.add_error(ValidationError::hidden_item(
+                what,
+                path.to_string(),
+                path.last_span(),
+            ));
         }
         Ok(())
     }
@@ -677,9 +696,16 @@ impl Visitor {
         Ok(Self::root(package)?.crate_id)
     }
 
-    /// Returns true if the given `id` belongs to the root crate
+    /// Returns `true` if the given `id` belongs to the root crate.
+    ///
+    /// Checks index for info on containing crate. If the item is not found in
+    /// the index, it is assumed to be external.
     fn in_root_crate(&self, id: &Id) -> bool {
-        id.0.starts_with(&format!("{}:", self.root_crate_id))
+        if let Ok(item) = self.item(id) {
+            item.crate_id == self.root_crate_id
+        } else {
+            false
+        }
     }
 
     fn root_crate_name(package: &Crate) -> Result<String> {

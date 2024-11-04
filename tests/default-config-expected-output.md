@@ -58,7 +58,7 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
 61 |     pub fn something(_one: &SomeStruct) {}
    |     ^------------------------------------^
    |
-   = in argument named `_one` of `test_crate::something`
+   = in argument named `_one` of `test_crate::something::something`
 
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
   --> test-crate/src/lib.rs:66:5
@@ -338,6 +338,16 @@ error: Unapproved external type `external_lib::SimpleNewType` referenced in publ
     |
     = in struct field of `test_crate::AssocConstStruct::OTHER_CONST`
 
+warning: argument named `arg0` of test_crate::hidden_arg references a hidden item. Items marked `#[doc(hidden)]` cannot be checked for external types
+   --> test-crate/src/lib.rs:160:1
+    |
+160 | pub fn hidden_arg(arg0: HiddenStruct) {
+    | ...
+162 | }␊
+    | ^
+    |
+    = in argument named `arg0` of `test_crate::hidden_arg`
+
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
   --> test-crate/src/test_assoc_type.rs:12:5
    |
@@ -419,4 +429,4 @@ error: Unapproved external type `external_lib::SimpleTrait` referenced in public
    = in trait bound of `test_crate::test_union::GenericUnion`
 
 warning: Fields on `test_crate::test_fields_stripped::SomeStructWithStrippedFields` marked `#[doc(hidden)]` cannot be checked for external types
-48 errors, 1 warnings emitted
+48 errors, 2 warnings emitted
