@@ -656,13 +656,12 @@ impl Visitor {
                     path.last_span(),
                 ));
             }
-        }
-        // Crates like `pin_project` do some shenanigans to create and reference types that don't end up
-        // in the doc index, but that should only happen within the root crate.
-        else if self.in_external_crate(id) {
-            unreachable!(
-                "An item referenced another item from an external crate that is not in the index; path: {path}, what: {what}",
-            );
+        } else if !self.in_root_crate(id) {
+            self.add_error(ValidationError::hidden_item(
+                what,
+                path.to_string(),
+                path.last_span(),
+            ));
         }
         Ok(())
     }
@@ -707,14 +706,6 @@ impl Visitor {
         } else {
             false
         }
-    }
-
-    /// Returns `true` if the given `id` belongs to a crate other than the root
-    /// crate.
-    ///
-    /// This is the inverse of `in_root_crate`.
-    fn in_external_crate(&self, id: &Id) -> bool {
-        !self.in_root_crate(id)
     }
 
     fn root_crate_name(package: &Crate) -> Result<String> {

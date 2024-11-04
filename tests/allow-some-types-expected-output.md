@@ -18,6 +18,16 @@ error: Unapproved external type `external_lib::AssociatedGenericTrait` reference
     |
     = in trait bound of `test_crate::SomeTraitWithExternalDefaultTypes::OtherThing`
 
+warning: argument named `arg0` of test_crate::hidden_arg references a hidden item. Items marked `#[doc(hidden)]` cannot be checked for external types
+   --> test-crate/src/lib.rs:160:1
+    |
+160 | pub fn hidden_arg(arg0: HiddenStruct) {
+    | ...
+162 | }␊
+    | ^
+    |
+    = in argument named `arg0` of `test_crate::hidden_arg`
+
 error: Unapproved external type `external_lib::ReprCType` referenced in public API
   --> test-crate/src/test_union.rs:10:5
    |
@@ -37,4 +47,4 @@ error: Unapproved external type `external_lib::ReprCType` referenced in public A
    = in return value of `test_crate::test_union::SimpleUnion::repr_c`
 
 warning: Fields on `test_crate::test_fields_stripped::SomeStructWithStrippedFields` marked `#[doc(hidden)]` cannot be checked for external types
-4 errors, 1 warnings emitted
+4 errors, 2 warnings emitted
