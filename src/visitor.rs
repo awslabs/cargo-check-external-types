@@ -661,7 +661,7 @@ impl Visitor {
         // in the doc index, but that should only happen within the root crate.
         else if self.in_external_crate(id) {
             unreachable!(
-                "An item referenced another item from an external crate that is not in the index; path: {path:?}, what: {what:?}",
+                "An item referenced another item from an external crate that is not in the index; path: {path}, what: {what}",
             );
         }
         Ok(())
