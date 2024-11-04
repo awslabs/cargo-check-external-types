@@ -270,9 +270,7 @@ impl ValidationError {
                 )
             }
             Self::HiddenItem {
-                what,
-                in_what_type,
-                ..
+                what, in_what_type, ..
             } => {
                 write!(
                     f,
