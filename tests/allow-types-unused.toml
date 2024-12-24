@@ -1,0 +1,11 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+allowed_external_types = [
+    "external_lib::S*",
+    "external_lib::R*",
+    "external_lib::A*",
+
+    # Unused Pattern
+    "external_lib::T*",
+]
