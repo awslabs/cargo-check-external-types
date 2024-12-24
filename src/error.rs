@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
+use wildmatch::WildMatch;
 
 /// Where the error occurred relative to the [`Path`](crate::path::Path).
 ///
@@ -145,6 +146,17 @@ pub enum ValidationError {
         location: Option<Span>,
         sort_key: String,
     },
+    UnusedApprovedExternalTypeRef {
+        type_name: String,
+    },
+    DuplicateApproved {
+        type_name: String,
+        what: ErrorLocation,
+        in_what_type: String,
+        location: Option<Span>,
+        duplicate: Vec<String>,
+        sort_key: String,
+    },
 }
 
 impl ValidationError {
@@ -175,9 +187,11 @@ impl ValidationError {
     pub fn level(&self) -> ErrorLevel {
         match self {
             Self::UnapprovedExternalTypeRef { .. } => ErrorLevel::Error,
-            Self::HiddenModule { .. } | Self::HiddenItem { .. } | Self::FieldsStripped { .. } => {
-                ErrorLevel::Warning
-            }
+            Self::HiddenModule { .. }
+            | Self::HiddenItem { .. }
+            | Self::FieldsStripped { .. }
+            | Self::UnusedApprovedExternalTypeRef { .. }
+            | Self::DuplicateApproved { .. } => ErrorLevel::Warning,
         }
     }
 
@@ -222,11 +236,49 @@ impl ValidationError {
         }
     }
 
+    pub fn unused_approved_external_type_ref(type_name: impl Into<String>) -> Self {
+        Self::UnusedApprovedExternalTypeRef {
+            type_name: type_name.into(),
+        }
+    }
+
+    pub fn duplicate_approved(
+        type_name: impl Into<String>,
+        what: &ErrorLocation,
+        in_what_type: impl Into<String>,
+        location: Option<&Span>,
+        duplicate: Vec<&WildMatch>,
+    ) -> Self {
+        if location.is_none() {
+            bug!("A warning is missing a span and will be printed without context, file name, and line number.");
+        }
+        let type_name = type_name.into();
+        let in_what_type = in_what_type.into();
+        let duplicate = duplicate
+            .iter()
+            .map(|pattern| pattern.to_string())
+            .collect();
+        let sort_key = format!(
+            "{}:{type_name}:{what}:{in_what_type}",
+            location_sort_key(location)
+        );
+        Self::DuplicateApproved {
+            type_name,
+            what: what.clone(),
+            in_what_type,
+            location: location.cloned(),
+            duplicate,
+            sort_key: sort_key,
+        }
+    }
+
     pub fn type_name(&self) -> &str {
         match self {
             Self::UnapprovedExternalTypeRef { type_name, .. }
             | Self::HiddenModule { type_name, .. }
-            | Self::FieldsStripped { type_name } => type_name,
+            | Self::FieldsStripped { type_name }
+            | Self::UnusedApprovedExternalTypeRef { type_name }
+            | Self::DuplicateApproved { type_name, .. } => type_name,
             Self::HiddenItem { .. } => "N/A",
         }
     }
@@ -235,17 +287,19 @@ impl ValidationError {
         match self {
             Self::UnapprovedExternalTypeRef { location, .. }
             | Self::HiddenModule { location, .. }
-            | Self::HiddenItem { location, .. } => location.as_ref(),
-            Self::FieldsStripped { .. } => None,
+            | Self::HiddenItem { location, .. }
+            | Self::DuplicateApproved { location, .. } => location.as_ref(),
+            Self::FieldsStripped { .. } | Self::UnusedApprovedExternalTypeRef { .. } => None,
         }
     }
 
     fn sort_key(&self) -> &str {
         match self {
-            Self::UnapprovedExternalTypeRef { sort_key, .. } => sort_key.as_ref(),
-            Self::FieldsStripped { type_name } | Self::HiddenModule { type_name, .. } => {
-                type_name.as_ref()
-            }
+            Self::UnapprovedExternalTypeRef { sort_key, .. }
+            | Self::DuplicateApproved { sort_key, .. } => sort_key.as_ref(),
+            Self::FieldsStripped { type_name }
+            | Self::HiddenModule { type_name, .. }
+            | Self::UnusedApprovedExternalTypeRef { type_name } => type_name.as_ref(),
             Self::HiddenItem { sort_key, .. } => sort_key.as_ref(),
         }
     }
@@ -283,6 +337,26 @@ impl ValidationError {
                     "Fields on `{type_name}` marked `#[doc(hidden)]` cannot be checked for external types"
                 )
             }
+            Self::UnusedApprovedExternalTypeRef { type_name } => {
+                write!(
+                    f,
+                    "Approved external type `{type_name}` wasn't referenced in public API"
+                )
+            }
+            Self::DuplicateApproved {
+                type_name,
+                duplicate,
+                ..
+            } => {
+                write!(
+                    f,
+                    "External type `{type_name}` is allowed multiple times:\n Allowed patterns:{}",
+                    duplicate
+                        .iter()
+                        .map(|glob| format!("\n    - {}", glob))
+                        .fold(String::new(), |acc, f| acc + &f)
+                )
+            }
         }
     }
 
@@ -291,11 +365,14 @@ impl ValidationError {
             Self::UnapprovedExternalTypeRef {
                 what, in_what_type, ..
             } => format!("in {} `{}`", what, in_what_type).into(),
-            Self::FieldsStripped { .. } => "".into(),
+            Self::FieldsStripped { .. } | Self::UnusedApprovedExternalTypeRef { .. } => "".into(),
             Self::HiddenModule {
                 what, in_what_type, ..
             }
             | Self::HiddenItem {
+                what, in_what_type, ..
+            }
+            | Self::DuplicateApproved {
                 what, in_what_type, ..
             } => format!("in {} `{}`", what, in_what_type).into(),
         }
