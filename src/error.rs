@@ -357,6 +357,26 @@ impl ValidationError {
                         .fold(String::new(), |acc, f| acc + &f)
                 )
             }
+            Self::UnusedApprovedExternalTypeRef { type_name } => {
+                write!(
+                    f,
+                    "Approved external type `{type_name}` wasn't referenced in public API"
+                )
+            }
+            Self::DuplicateApproved {
+                type_name,
+                duplicate,
+                ..
+            } => {
+                write!(
+                    f,
+                    "External type `{type_name}` is allowed multiple times:\n Allowed patterns:{}",
+                    duplicate
+                        .iter()
+                        .map(|glob| format!("\n    - {}", glob))
+                        .fold(String::new(), |acc, f| acc + &f)
+                )
+            }
         }
     }
 

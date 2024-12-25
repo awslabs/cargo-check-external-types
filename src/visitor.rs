@@ -108,7 +108,6 @@ impl Visitor {
             let item = self.item(id).context(here!())?;
             self.visit_item(&root_path, item, VisibilityCheck::Default)?;
         }
-
         self.unused_approve
             .take()
             .into_iter()
