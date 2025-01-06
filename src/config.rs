@@ -8,6 +8,20 @@ use serde::{Deserialize, Deserializer};
 use std::fmt;
 use wildmatch::WildMatch;
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum AllowedTypeMatch<'a> {
+    RootMatch,
+    StandardLibrary(&'static str),
+    WildcardMatch(&'a WildMatch),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum AllowedTypeError<'a> {
+    StandardLibraryNotAllowed(&'static str),
+    NoMatchFound,
+    DuplicateMatches(Vec<&'a WildMatch>),
+}
+
 /// Struct representation of the Cargo.toml metadata, or TOML config files, that specify which
 /// external types are allowed.
 #[derive(Debug, Deserialize)]
@@ -44,18 +58,46 @@ pub struct Config {
 }
 
 impl Config {
-    /// Returns true if the given `type_name` is allowed by this config for the given `root_crate_name`.
-    pub fn allows_type(&self, root_crate_name: &str, type_name: &str) -> bool {
+    /// Returns Ok(AllowedTypeMatch::RootMatch) if the given `type_name` is allowed by this config for the given `root_crate_name`.
+    pub fn allows_type<'a>(
+        &'a self,
+        root_crate_name: &str,
+        type_name: &str,
+    ) -> Result<AllowedTypeMatch<'a>, AllowedTypeError<'a>> {
         let type_crate_name = &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
-        match type_crate_name {
-            _ if type_crate_name == root_crate_name => true,
-            "alloc" => self.allow_alloc,
-            "core" => self.allow_core,
-            "std" => self.allow_std,
-            _ => self
-                .allowed_external_types
-                .iter()
-                .any(|glob| glob.matches(type_name)),
+
+        if type_crate_name == root_crate_name {
+            return Ok(AllowedTypeMatch::RootMatch);
+        }
+
+        if let Some(std_name) = ["alloc", "core", "std"]
+            .iter()
+            .find(|&&std| std == type_crate_name)
+        {
+            let allowed = match *std_name {
+                "alloc" => self.allow_alloc,
+                "core" => self.allow_core,
+                "std" => self.allow_std,
+                _ => unreachable!(),
+            };
+
+            return if allowed {
+                Ok(AllowedTypeMatch::StandardLibrary(std_name))
+            } else {
+                Err(AllowedTypeError::StandardLibraryNotAllowed(std_name))
+            };
+        }
+
+        let matches: Vec<_> = self
+            .allowed_external_types
+            .iter()
+            .filter(|glob| glob.matches(type_name))
+            .collect();
+
+        match matches.len() {
+            0 => Err(AllowedTypeError::NoMatchFound),
+            1 => Ok(AllowedTypeMatch::WildcardMatch(matches[0])),
+            _ => Err(AllowedTypeError::DuplicateMatches(matches)),
         }
     }
 }
@@ -105,7 +147,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{AllowedTypeError, AllowedTypeMatch, Config};
     use wildmatch::WildMatch;
 
     #[test]
@@ -128,18 +170,73 @@ mod tests {
     }
 
     #[test]
+    fn deserialize_config_multiple_allow() {
+        let config = r#"
+            allowed_external_types = [
+                "test::*",
+                "test::*",
+
+                "another_test::*",
+                "*::foo",
+            ]
+        "#;
+        let config: Config = toml::from_str(config).unwrap();
+        assert_eq!(
+            config.allows_type("root", "test::thing"),
+            Err(AllowedTypeError::DuplicateMatches(vec![
+                &WildMatch::new("test::*"),
+                &WildMatch::new("test::*"),
+            ]))
+        );
+        assert_eq!(
+            config.allows_type("root", "another_test::foo"),
+            Err(AllowedTypeError::DuplicateMatches(vec![
+                &WildMatch::new("another_test::*"),
+                &WildMatch::new("*::foo"),
+            ]))
+        );
+    }
+
+    #[test]
     fn test_allows_type() {
         let config = Config {
             allowed_external_types: vec![WildMatch::new("one::*"), WildMatch::new("two::*")],
             ..Default::default()
         };
-        assert!(config.allows_type("root", "alloc::System"));
-        assert!(config.allows_type("root", "std::vec::Vec"));
-        assert!(config.allows_type("root", "std::path::Path"));
+        assert_eq!(
+            config.allows_type("root", "alloc::System"),
+            Ok(AllowedTypeMatch::StandardLibrary("alloc"))
+        );
+        assert_eq!(
+            config.allows_type("root", "std::vec::Vec"),
+            Ok(AllowedTypeMatch::StandardLibrary("std"))
+        );
+        assert_eq!(
+            config.allows_type("root", "std::path::Path"),
+            Ok(AllowedTypeMatch::StandardLibrary("std"))
+        );
 
-        assert!(config.allows_type("root", "root::thing"));
-        assert!(config.allows_type("root", "one::thing"));
-        assert!(config.allows_type("root", "two::thing"));
-        assert!(!config.allows_type("root", "three::thing"));
+        assert_eq!(
+            config.allows_type("root", "root::thing"),
+            Ok(AllowedTypeMatch::RootMatch)
+        );
+
+        assert_eq!(
+            config.allows_type("other_root", "root::thing"),
+            Err(AllowedTypeError::NoMatchFound)
+        );
+
+        assert_eq!(
+            config.allows_type("root", "one::thing"),
+            Ok(AllowedTypeMatch::WildcardMatch(&WildMatch::new("one::*")))
+        );
+        assert_eq!(
+            config.allows_type("root", "two::thing"),
+            Ok(AllowedTypeMatch::WildcardMatch(&WildMatch::new("two::*")))
+        );
+        assert_eq!(
+            config.allows_type("root", "three::thing"),
+            Err(AllowedTypeError::NoMatchFound)
+        );
     }
 }
