@@ -10,7 +10,7 @@ use cargo_check_external_types::config::Config;
 use cargo_check_external_types::error::{ErrorPrinter, ValidationError};
 use cargo_check_external_types::here;
 use cargo_check_external_types::visitor::Visitor;
-use cargo_metadata::{CargoOpt, Metadata, Package};
+use cargo_metadata::{CargoOpt, Metadata, Package, TargetKind};
 use clap::Parser;
 use std::collections::HashMap;
 use std::fmt;
@@ -250,7 +250,7 @@ fn resolve_lib_name(metadata: &Metadata) -> Result<String> {
     let lib_targets = resolve_root_package(metadata)?
         .targets
         .iter()
-        .filter(|t| t.kind.iter().any(|k| k == "lib"))
+        .filter(|t| t.kind.iter().any(|k| *k == TargetKind::Lib))
         .collect::<Vec<_>>();
     if lib_targets.len() != 1 {
         bail!(
