@@ -95,6 +95,26 @@ fn with_output_format_markdown_table() {
     assert_str_eq!(expected_output, actual_output);
 }
 
+#[test]
+fn test_unused_allowed_external_types() {
+    let expected_output = fs::read_to_string("tests/allow-types-unused.md").unwrap();
+    let actual_output = run_with_args(
+        "test-workspace/test-crate",
+        &["--config", "../../tests/allow-types-unused.toml"],
+    );
+    assert_str_eq!(expected_output, actual_output);
+}
+
+#[test]
+fn test_multiple_allowed_external_types() {
+    let expected_output = fs::read_to_string("tests/allow-types-multiple-times.md").unwrap();
+    let actual_output = run_with_args(
+        "test-workspace/test-crate",
+        &["--config", "../../tests/allow-types-multiple-times.toml"],
+    );
+    assert_str_eq!(expected_output, actual_output);
+}
+
 // Make sure that the visitor doesn't attempt to visit the inner items of re-exported external types.
 // Rustdoc doesn't include these inner items in its JSON output, which leads to obtuse crashes if they're
 // referenced. It's also just the wrong behavior to look into the type being re-exported, since if it's

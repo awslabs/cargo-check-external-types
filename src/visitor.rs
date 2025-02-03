@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use crate::config::Config;
+use crate::config::{AllowedTypeError, AllowedTypeMatch, Config};
 use crate::error::{ErrorLocation, ValidationError, ValidationErrors};
 use crate::path::{ComponentType, Path};
 use crate::{bug_panic, here};
@@ -14,8 +14,9 @@ use rustdoc_types::{
     Trait, Type, Union, Variant, VariantKind, Visibility, WherePredicate,
 };
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::{debug, instrument, warn};
+use wildmatch::WildMatch;
 
 macro_rules! unstable_rust_feature {
     ($name:expr, $documentation_uri:expr) => {
@@ -57,10 +58,24 @@ pub struct Visitor {
     /// The visitor adds errors to this set while it visits each item in the rustdoc
     /// output.
     errors: RefCell<ValidationErrors>,
+
+    /// A set of approved crate patterns.
+    ///
+    /// The visitor removes a pattern from this set if at least one match is found.
+    /// Any remaining patterns at the end of processing are treated as unused
+    /// and added to the validation errors.
+    unused_approve: RefCell<HashSet<String>>,
 }
 
 impl Visitor {
     pub fn new(config: Config, package: Crate) -> Result<Self> {
+        let unused_approve = RefCell::new(
+            config
+                .allowed_external_types
+                .iter()
+                .map(|glob| glob.to_string())
+                .collect(),
+        );
         Ok(Visitor {
             config,
             root_crate_id: Self::root_crate_id(&package)?,
@@ -68,6 +83,7 @@ impl Visitor {
             index: package.index,
             paths: package.paths,
             errors: RefCell::new(ValidationErrors::new()),
+            unused_approve,
         })
     }
 
@@ -92,6 +108,12 @@ impl Visitor {
             let item = self.item(id).context(here!())?;
             self.visit_item(&root_path, item, VisibilityCheck::Default)?;
         }
+
+        self.unused_approve
+            .take()
+            .into_iter()
+            .for_each(|pattern| self.add_error(ValidationError::unused_approval_pattern(pattern)));
+
         Ok(self.errors.take())
     }
 
@@ -194,14 +216,7 @@ impl Visitor {
                         // not referenced in `paths` then it's assumed to be an
                         // external hidden module.
                         if let Ok(type_name) = self.type_name(target_id) {
-                            if !self.config.allows_type(&self.root_crate_name, &type_name) {
-                                self.add_error(ValidationError::unapproved_external_type_ref(
-                                    type_name,
-                                    &ErrorLocation::ReExport,
-                                    path.to_string(),
-                                    path.last_span(),
-                                ));
-                            }
+                            self.check_allow_type(&path, &ErrorLocation::ReExport, type_name);
                         } else {
                             let first_hidden_module_in_path =
                                 infer_first_hidden_module_in_import_source(
@@ -420,7 +435,7 @@ impl Visitor {
             Type::Pat { .. } => {
                 panic!(
                     "Pattern types are unstable and rustc internal rust-lang#120131. \
-                     They are unsuported by cargo-check-external-types."
+                      They are unsuported by cargo-check-external-types."
                 )
             }
             Type::FunctionPointer(fp) => {
@@ -648,14 +663,7 @@ impl Visitor {
 
     fn check_external(&self, path: &Path, what: &ErrorLocation, id: &Id) -> Result<()> {
         if let Ok(type_name) = self.type_name(id) {
-            if !self.config.allows_type(&self.root_crate_name, &type_name) {
-                self.add_error(ValidationError::unapproved_external_type_ref(
-                    type_name,
-                    what,
-                    path.to_string(),
-                    path.last_span(),
-                ));
-            }
+            self.check_allow_type(path, what, type_name);
         } else if !self.in_root_crate(id) {
             self.add_error(ValidationError::hidden_item(
                 what,
@@ -666,22 +674,58 @@ impl Visitor {
         Ok(())
     }
 
+    fn check_allow_type(&self, path: &Path, what: &ErrorLocation, type_name: String) {
+        match self.config.allows_type(&self.root_crate_name, &type_name) {
+            Ok(AllowedTypeMatch::RootMatch) | Ok(AllowedTypeMatch::StandardLibrary(_)) => {}
+            Ok(AllowedTypeMatch::WildcardMatch(pattern)) => {
+                self.remove_unused_approval_pattern(pattern)
+            }
+            Err(AllowedTypeError::StandardLibraryNotAllowed(_))
+            | Err(AllowedTypeError::NoMatchFound) => {
+                self.add_error(ValidationError::unapproved_external_type_ref(
+                    type_name,
+                    what,
+                    path.to_string(),
+                    path.last_span(),
+                ))
+            }
+            Err(AllowedTypeError::DuplicateMatches(duplicated_approve)) => {
+                for approved in duplicated_approve.iter() {
+                    self.remove_unused_approval_pattern(approved);
+                }
+                self.add_error(ValidationError::duplicate_approved(
+                    type_name,
+                    what,
+                    path.to_string(),
+                    path.last_span(),
+                    duplicated_approve,
+                ))
+            }
+        }
+    }
+
     fn add_error(&self, error: ValidationError) {
         debug!("detected error {:?}", error);
         self.errors.borrow_mut().add(error);
     }
 
+    fn remove_unused_approval_pattern(&self, pattern: &WildMatch) {
+        self.unused_approve
+            .borrow_mut()
+            .remove(&pattern.to_string());
+    }
+
     fn item(&self, id: &Id) -> Result<&Item> {
         self.index
-            .get(id)
-            .ok_or_else(|| {
-                if let Some(item_summary) = self.paths.get(id) {
-                    anyhow!("Failed to find item in index for ID {:?} but did find an item summary: {item_summary:?}", id)
-                } else {
-                    anyhow!("Failed to find item in index for ID {:?}", id)
-                }
-            })
-            .context(here!())
+             .get(id)
+             .ok_or_else(|| {
+                 if let Some(item_summary) = self.paths.get(id) {
+                     anyhow!("Failed to find item in index for ID {:?} but did find an item summary: {item_summary:?}", id)
+                 } else {
+                     anyhow!("Failed to find item in index for ID {:?}", id)
+                 }
+             })
+             .context(here!())
     }
 
     fn item_summary(&self, id: &Id) -> Option<&ItemSummary> {
