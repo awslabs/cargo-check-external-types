@@ -512,7 +512,7 @@ impl ErrorPrinter {
                     "  --> {}:{}:{}",
                     location.filename.to_string_lossy(),
                     location.begin.0,
-                    location.begin.1 + 1
+                    location.begin.1,
                 );
                 println!("   | Failed to load {:?}", location.filename);
                 println!("   | relative to {:?}", self.workspace_root);
@@ -533,7 +533,7 @@ impl ErrorPrinter {
             cc += 1;
             if byte == b'\n' {
                 cl += 1;
-                cc = 0;
+                cc = 1;
             }
         }
         None
