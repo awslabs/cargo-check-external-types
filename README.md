@@ -39,7 +39,7 @@ How to Use
 _Important:_ This tool requires a nightly build of Rust to be installed since it
 relies on the [rustdoc JSON
 output](https://github.com/rust-lang/rust/issues/76578), which hasn't been
-stabilized yet. The `main` branch was last tested against `nightly-2024-10-29`.
+stabilized yet. The `main` branch was last tested against `nightly-2025-05-04`.
 For info on what nightly version a specific release depends on, see the
 [releases](https://github.com/awslabs/cargo-check-external-types/releases) page.
 
@@ -101,7 +101,7 @@ version is. All in all, you must update:
 - The `rustdoc-types` dependency in `Cargo.toml` to the new version.
 - The `rust-toolchain` file to point to the new nightly version.
 - The `README.md` file, specifically the *"It was last tested against `nightly-XXXX-XX-XX`."* of the ["How to Use"](#how-to-use) section.
-- The `rust_version` in the [CI workflow file](.github/workflows/ci.yml). 
+- The `rust_version` in the [CI workflow file](.github/workflows/ci.yml).
 
 Then, PR your changes.
 

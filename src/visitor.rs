@@ -537,6 +537,7 @@ impl Visitor {
                         .context(here!())?;
                 }
             }
+            GenericArgs::ReturnTypeNotation => {}
         }
         Ok(())
     }

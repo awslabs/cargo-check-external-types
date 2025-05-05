@@ -51,7 +51,7 @@ impl fmt::Display for ErrorLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
             Self::AssocType => "associated type",
-            Self::ArgumentNamed(name) => return write!(f, "argument named `{}` of", name),
+            Self::ArgumentNamed(name) => return write!(f, "argument named `{name}` of"),
             Self::ClosureInput => "closure input of",
             Self::ClosureOutput => "closure output of",
             Self::ConstGeneric => "const generic of",
@@ -71,7 +71,7 @@ impl fmt::Display for ErrorLocation {
             Self::TypeAlias => "type alias of",
             Self::WhereBound => "where bound of",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -353,7 +353,7 @@ impl ValidationError {
                     "External type `{type_name}` is allowed multiple times:\n Allowed patterns:{}",
                     duplicate
                         .iter()
-                        .map(|glob| format!("\n    - {}", glob))
+                        .map(|glob| format!("\n    - {glob}"))
                         .fold(String::new(), |acc, f| acc + &f)
                 )
             }
@@ -364,7 +364,7 @@ impl ValidationError {
         match self {
             Self::UnapprovedExternalTypeRef {
                 what, in_what_type, ..
-            } => format!("in {} `{}`", what, in_what_type).into(),
+            } => format!("in {what} `{in_what_type}`").into(),
             Self::FieldsStripped { .. } | Self::UnusedApprovalPattern { .. } => "".into(),
             Self::HiddenModule {
                 what, in_what_type, ..
@@ -374,7 +374,7 @@ impl ValidationError {
             }
             | Self::DuplicateApproved {
                 what, in_what_type, ..
-            } => format!("in {} `{}`", what, in_what_type).into(),
+            } => format!("in {what} `{in_what_type}`").into(),
         }
     }
 }
@@ -512,7 +512,7 @@ impl ErrorPrinter {
                     "  --> {}:{}:{}",
                     location.filename.to_string_lossy(),
                     location.begin.0,
-                    location.begin.1 + 1
+                    location.begin.1,
                 );
                 println!("   | Failed to load {:?}", location.filename);
                 println!("   | relative to {:?}", self.workspace_root);
@@ -533,7 +533,7 @@ impl ErrorPrinter {
             cc += 1;
             if byte == b'\n' {
                 cl += 1;
-                cc = 0;
+                cc = 1;
             }
         }
         None
@@ -542,7 +542,7 @@ impl ErrorPrinter {
     pub fn pretty_print_errors(&mut self, errors: &ValidationErrors) {
         for error in errors.iter() {
             Self::print_error_level(error.level());
-            println!("{}", error);
+            println!("{error}");
             if let Some(location) = error.location() {
                 self.pretty_print_error_context(location, error.subtext().as_ref())
             }
