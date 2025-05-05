@@ -203,7 +203,7 @@ fn run_main() -> Result<(), Error> {
                 }
             }
             rows.sort();
-            rows.into_iter().for_each(|row| println!("{}", row));
+            rows.into_iter().for_each(|row| println!("{row}"));
         }
     }
 
@@ -250,7 +250,7 @@ fn resolve_lib_name(metadata: &Metadata) -> Result<String> {
     let lib_targets = resolve_root_package(metadata)?
         .targets
         .iter()
-        .filter(|t| t.kind.iter().any(|k| *k == TargetKind::Lib))
+        .filter(|t| t.kind.contains(&TargetKind::Lib))
         .collect::<Vec<_>>();
     if lib_targets.len() != 1 {
         bail!(
