@@ -39,7 +39,7 @@ How to Use
 _Important:_ This tool requires a nightly build of Rust to be installed since it
 relies on the [rustdoc JSON
 output](https://github.com/rust-lang/rust/issues/76578), which hasn't been
-stabilized yet. The `main` branch was last tested against `nightly-2025-05-04`.
+stabilized yet. The `main` branch was last tested against `nightly-2025-08-06`.
 For info on what nightly version a specific release depends on, see the
 [releases](https://github.com/awslabs/cargo-check-external-types/releases) page.
 

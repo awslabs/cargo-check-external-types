@@ -522,7 +522,7 @@ impl ErrorPrinter {
         }
     }
 
-    fn position_from_line_col(contents: &str, (line, col): (usize, usize)) -> Option<Position> {
+    fn position_from_line_col(contents: &str, (line, col): (usize, usize)) -> Option<Position<'_>> {
         let (mut cl, mut cc) = (1, 1);
         let content_bytes = contents.as_bytes();
         for (index, &byte) in content_bytes.iter().enumerate() {
