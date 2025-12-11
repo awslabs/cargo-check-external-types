@@ -110,6 +110,8 @@ jobs:
         run: |
           cargo install --locked --path cargo-check-external-types
           cd aws-sdk-rust/sdk
+          ls
+          ls aws-config/
           cargo check-external-types --all-features --config aws-config/external-types.toml --manifest-path aws-config/Cargo.toml
           cargo check-external-types --all-features --config aws-endpoint/external-types.toml --manifest-path aws-endpoint/Cargo.toml
           cargo check-external-types --all-features --config aws-http/external-types.toml --manifest-path aws-http/Cargo.toml
