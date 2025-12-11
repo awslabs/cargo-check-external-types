@@ -117,7 +117,7 @@ jobs:
           cargo check-external-types --all-features --config aws-smithy-checksums/external-types.toml --manifest-path aws-smithy-checksums/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-eventstream/external-types.toml --manifest-path aws-smithy-eventstream/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-http/external-types.toml --manifest-path aws-smithy-http/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-http-client/external-types.toml --manifest-path aws-smithy-http/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-http-client/external-types.toml --manifest-path aws-smithy-http-client/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-json/external-types.toml --manifest-path aws-smithy-json/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-query/external-types.toml --manifest-path aws-smithy-query/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-runtime-api/external-types.toml --manifest-path aws-smithy-runtime-api/Cargo.toml
