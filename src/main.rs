@@ -138,6 +138,8 @@ fn run_main() -> Result<(), Error> {
     }
     let crate_path = if let Some(manifest_path) = args.manifest_path {
         cargo_metadata_cmd.manifest_path(&manifest_path);
+        println!("MANIFEST PATH: {manifest_path:#?}");
+        println!("MANIFEST PATH CANON: {:#?}", manifest_path.canonicalize());
         manifest_path
             .canonicalize()
             .context(here!())?
