@@ -133,8 +133,8 @@ fn run_main() -> Result<(), Error> {
     if args.no_default_features {
         cargo_metadata_cmd.features(CargoOpt::NoDefaultFeatures);
     }
-    if let Some(features) = args.features {
-        cargo_metadata_cmd.features(CargoOpt::SomeFeatures(features));
+    if let Some(features) = &args.features {
+        cargo_metadata_cmd.features(CargoOpt::SomeFeatures(features.clone()));
     }
     let crate_path = if let Some(manifest_path) = args.manifest_path {
         cargo_metadata_cmd.manifest_path(&manifest_path);
@@ -160,7 +160,11 @@ fn run_main() -> Result<(), Error> {
             .context("failed to parse config from Cargo.toml metadata")?
     };
 
-    let cargo_features = resolve_features(&cargo_metadata)?;
+    let cargo_features = if let Some(features) = args.features {
+        features
+    } else {
+        resolve_features(&cargo_metadata)?
+    };
     let cargo_lib_name = resolve_lib_name(&cargo_metadata)?;
 
     eprintln!("Running rustdoc to produce json doc output...");

@@ -111,17 +111,13 @@ jobs:
           cargo install --locked --path cargo-check-external-types
           cd aws-sdk-rust/sdk
           cargo check-external-types --all-features --config aws-config/external-types.toml --manifest-path aws-config/Cargo.toml
-          cargo check-external-types --all-features --config aws-endpoint/external-types.toml --manifest-path aws-endpoint/Cargo.toml
-          cargo check-external-types --all-features --config aws-http/external-types.toml --manifest-path aws-http/Cargo.toml
           cargo check-external-types --all-features --config aws-runtime/external-types.toml --manifest-path aws-runtime/Cargo.toml
-          cargo check-external-types --all-features --config aws-sig-auth/external-types.toml --manifest-path aws-sig-auth/Cargo.toml
           cargo check-external-types --all-features --config aws-sigv4/external-types.toml --manifest-path aws-sigv4/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-async/external-types.toml --manifest-path aws-smithy-async/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-checksums/external-types.toml --manifest-path aws-smithy-checksums/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-client/external-types.toml --manifest-path aws-smithy-client/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-eventstream/external-types.toml --manifest-path aws-smithy-eventstream/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-http-tower/external-types.toml --manifest-path aws-smithy-http-tower/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-http/external-types.toml --manifest-path aws-smithy-http/Cargo.toml
+          cargo check-external-types --all-features --config aws-smithy-http-client/external-types.toml --manifest-path aws-smithy-http-client/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-json/external-types.toml --manifest-path aws-smithy-json/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-query/external-types.toml --manifest-path aws-smithy-query/Cargo.toml
           cargo check-external-types --all-features --config aws-smithy-runtime-api/external-types.toml --manifest-path aws-smithy-runtime-api/Cargo.toml
