@@ -78,6 +78,9 @@ struct CheckExternalTypesArgs {
     /// Format to output results in
     #[arg(long, default_value_t = OutputFormat::Errors)]
     output_format: OutputFormat,
+    /// Returns this code when some warnings occurred without error
+    #[arg(long, default_value_t = 0)]
+    warning_return_code: i32,
 }
 
 #[derive(Parser, Debug, Eq, PartialEq)]
@@ -88,6 +91,7 @@ enum Args {
 
 enum Error {
     ValidationErrors,
+    Warning { code: i32 },
     Failure(anyhow::Error),
 }
 
@@ -101,6 +105,7 @@ fn main() {
     process::exit(match run_main() {
         Ok(_) => 0,
         Err(Error::ValidationErrors) => 1,
+        Err(Error::Warning { code }) => code,
         Err(Error::Failure(err)) => {
             println!("{:#}", dbg!(err));
             2
@@ -185,6 +190,9 @@ fn run_main() -> Result<(), Error> {
             ErrorPrinter::new(&cargo_metadata.workspace_root).pretty_print_errors(&errors);
             if errors.error_count() > 0 {
                 return Err(Error::ValidationErrors);
+            } else if errors.warning_count() > 0 {
+                let code = args.warning_return_code;
+                return Err(Error::Warning { code });
             }
         }
         OutputFormat::MarkdownTable => {
@@ -306,6 +314,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                warning_return_code: 0,
             }),
             Args::try_parse_from(["cargo", "check-external-types"]).unwrap()
         );
@@ -323,6 +332,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                warning_return_code: 0,
             }),
             Args::try_parse_from(["cargo", "check-external-types", "--all-features"]).unwrap()
         );
@@ -340,6 +350,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                warning_return_code: 0,
             }),
             Args::try_parse_from(["cargo", "check-external-types", "--no-default-features"])
                 .unwrap()
@@ -358,6 +369,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                warning_return_code: 0,
             }),
             Args::try_parse_from(["cargo", "check-external-types", "--features", "foo,bar"])
                 .unwrap()
@@ -376,6 +388,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                warning_return_code: 0,
             }),
             Args::try_parse_from([
                 "cargo",
@@ -399,6 +412,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                warning_return_code: 0,
             }),
             Args::try_parse_from([
                 "cargo",
@@ -422,6 +436,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: true,
                 output_format: OutputFormat::Errors,
+                warning_return_code: 0,
             }),
             Args::try_parse_from(["cargo", "check-external-types", "--verbose"]).unwrap()
         );
@@ -439,6 +454,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::MarkdownTable,
+                warning_return_code: 0,
             }),
             Args::try_parse_from([
                 "cargo",
