@@ -5,9 +5,10 @@
 
 use anyhow::{anyhow, bail};
 use anyhow::{Context, Result};
+use cargo_metadata::camino::Utf8Path;
 use cargo_check_external_types::cargo::CargoRustDocJson;
 use cargo_check_external_types::config::Config;
-use cargo_check_external_types::error::{ErrorPrinter, ValidationError};
+use cargo_check_external_types::error::{ErrorPrinter, ValidationError, ValidationErrors};
 use cargo_check_external_types::here;
 use cargo_check_external_types::visitor::Visitor;
 use cargo_metadata::{CargoOpt, Metadata, Package, TargetKind};
@@ -78,6 +79,9 @@ struct CheckExternalTypesArgs {
     /// Format to output results in
     #[arg(long, default_value_t = OutputFormat::Errors)]
     output_format: OutputFormat,
+    /// Skip unsupported package types (binary-only, proc-macro) instead of erroring
+    #[arg(long)]
+    skip_unsupported: bool,
 }
 
 #[derive(Parser, Debug, Eq, PartialEq)]
@@ -95,6 +99,37 @@ impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Self {
         Error::Failure(err)
     }
+}
+
+/// Reason why a package was skipped during checking.
+#[derive(Debug, Clone)]
+enum SkipReason {
+    /// Package has no lib target (e.g., binary-only crate)
+    NoLibTarget,
+    /// Package is a proc-macro crate
+    ProcMacro,
+    /// Package has no documentable items (e.g., doc = false)
+    NoDocumentableItems,
+}
+
+impl fmt::Display for SkipReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SkipReason::NoLibTarget => write!(f, "package has no lib target"),
+            SkipReason::ProcMacro => write!(f, "package is a proc-macro crate"),
+            SkipReason::NoDocumentableItems => write!(f, "package has no documentable items"),
+        }
+    }
+}
+
+/// Outcome of checking a single package.
+enum PackageOutcome {
+    /// Package was checked, may have validation errors
+    Checked {
+        errors: ValidationErrors,
+    },
+    /// Package was skipped for a specific reason
+    Skipped(SkipReason),
 }
 
 fn main() {
@@ -136,87 +171,178 @@ fn run_main() -> Result<(), Error> {
     if let Some(features) = &args.features {
         cargo_metadata_cmd.features(CargoOpt::SomeFeatures(features.clone()));
     }
-    let crate_path = if let Some(manifest_path) = args.manifest_path {
-        cargo_metadata_cmd.manifest_path(&manifest_path);
-        manifest_path
-            .canonicalize()
-            .context(here!())?
-            .parent()
-            .expect("parent path")
-            .to_path_buf()
-    } else {
-        std::env::current_dir()
-            .context(here!())?
-            .canonicalize()
-            .context(here!())?
-    };
+    if let Some(manifest_path) = &args.manifest_path {
+        cargo_metadata_cmd.manifest_path(manifest_path);
+    }
     let cargo_metadata = cargo_metadata_cmd.exec().context(here!())?;
 
-    let config = if let Some(config_path) = &args.config {
-        let contents = fs::read_to_string(config_path).context("failed to read config file")?;
-        toml::from_str(&contents).context("failed to parse config file")?
+    // Determine if we're in workspace mode or single-package mode
+    let is_workspace_mode = cargo_metadata.root_package().is_none();
+
+    // Validate --features is not used with workspace mode
+    if is_workspace_mode && args.features.is_some() {
+        return Err(Error::Failure(anyhow!("--features is not supported for workspace targets. Use --all-features instead, or run on individual packages.")));
+    }
+
+    // Get the list of packages to check
+    let packages: Vec<&Package> = if is_workspace_mode {
+        let mut pkgs: Vec<_> = cargo_metadata.workspace_packages();
+        pkgs.sort_by(|a, b| a.name.cmp(&b.name));
+        pkgs
     } else {
-        resolve_config(&cargo_metadata)
-            .context("failed to parse config from Cargo.toml metadata")?
+        vec![cargo_metadata.root_package().unwrap()]
     };
 
-    let cargo_features = if let Some(features) = args.features {
-        features
+    let mut had_validation_errors = false;
+
+    for package in packages {
+        if is_workspace_mode {
+            eprintln!("Checking package: {}...", package.name);
+        }
+
+        // Resolve config: --config flag takes precedence, then per-package metadata
+        let config = if let Some(config_path) = &args.config {
+            let contents = fs::read_to_string(config_path).context("failed to read config file")?;
+            toml::from_str(&contents).context("failed to parse config file")?
+        } else {
+            resolve_config_for_package(package)
+                .context("failed to parse config from Cargo.toml metadata")?
+        };
+
+        // Resolve the crate path for this package
+        let crate_path = package
+            .manifest_path
+            .parent()
+            .expect("manifest should have parent")
+            .as_std_path()
+            .to_path_buf();
+
+        // Resolve features for this package
+        let cargo_features = if let Some(features) = &args.features {
+            features.clone()
+        } else {
+            resolve_features_for_package(&cargo_metadata, package)?
+        };
+
+        // Check the package
+        let outcome = check_package(
+            package,
+            config,
+            &crate_path,
+            &cargo_metadata.target_directory,
+            cargo_features,
+            args.target.clone(),
+        )?;
+
+        match outcome {
+            PackageOutcome::Skipped(reason) => {
+                if args.skip_unsupported {
+                    eprintln!("Skipping {}: {}", package.name, reason);
+                } else {
+                    return Err(Error::Failure(anyhow!(
+                        "Package '{}' is not supported: {}. Use --skip-unsupported to skip.",
+                        package.name,
+                        reason
+                    )));
+                }
+            }
+            PackageOutcome::Checked { errors } => {
+                match args.output_format {
+                    OutputFormat::Errors => {
+                        ErrorPrinter::new(&cargo_metadata.workspace_root).pretty_print_errors(&errors);
+                        if errors.error_count() > 0 {
+                            had_validation_errors = true;
+                        }
+                    }
+                    OutputFormat::MarkdownTable => {
+                        if is_workspace_mode {
+                            println!("## {}", package.name);
+                            println!();
+                        }
+                        println!("| Crate | Type | Used In |");
+                        println!("| ---   | ---  | ---     |");
+                        let mut rows = Vec::new();
+                        for error in errors.iter() {
+                            if let ValidationError::UnapprovedExternalTypeRef { .. } = error {
+                                let type_name = error.type_name();
+                                let crate_name = &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
+                                let location = error.location().unwrap();
+                                rows.push(format!(
+                                    "| {} | {} | {}:{}:{} |",
+                                    crate_name,
+                                    type_name,
+                                    location.filename.to_string_lossy(),
+                                    location.begin.0,
+                                    location.begin.1
+                                ));
+                            }
+                        }
+                        rows.sort();
+                        rows.into_iter().for_each(|row| println!("{row}"));
+                        if is_workspace_mode {
+                            println!();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if had_validation_errors {
+        Err(Error::ValidationErrors)
     } else {
-        resolve_features(&cargo_metadata)?
+        Ok(())
+    }
+}
+
+/// Check a single package and return the outcome.
+fn check_package(
+    package: &Package,
+    config: Config,
+    crate_path: &PathBuf,
+    target_directory: &Utf8Path,
+    features: Vec<String>,
+    target: Option<String>,
+) -> Result<PackageOutcome> {
+    // Check if package is a proc-macro crate
+    let is_proc_macro = package
+        .targets
+        .iter()
+        .any(|t| t.kind.contains(&TargetKind::ProcMacro));
+    if is_proc_macro {
+        return Ok(PackageOutcome::Skipped(SkipReason::ProcMacro));
+    }
+
+    // Check if package has a lib target
+    let lib_name = match resolve_lib_name_for_package(package) {
+        Some(name) => name,
+        None => return Ok(PackageOutcome::Skipped(SkipReason::NoLibTarget)),
     };
-    let cargo_lib_name = resolve_lib_name(&cargo_metadata)?;
 
     eprintln!("Running rustdoc to produce json doc output...");
-    let package = CargoRustDocJson::new(
-        cargo_lib_name,
+    let crate_data = CargoRustDocJson::new(
+        lib_name,
         crate_path,
-        &cargo_metadata.target_directory,
-        cargo_features,
-        args.target.clone(),
+        target_directory,
+        features,
+        target,
     )
     .run()
     .context(here!())?;
 
-    eprintln!("Examining all public types...");
-    let errors = Visitor::new(config, package)?.visit_all()?;
-    match args.output_format {
-        OutputFormat::Errors => {
-            ErrorPrinter::new(&cargo_metadata.workspace_root).pretty_print_errors(&errors);
-            if errors.error_count() > 0 {
-                return Err(Error::ValidationErrors);
-            }
-        }
-        OutputFormat::MarkdownTable => {
-            println!("| Crate | Type | Used In |");
-            println!("| ---   | ---  | ---     |");
-            let mut rows = Vec::new();
-            for error in errors.iter() {
-                if let ValidationError::UnapprovedExternalTypeRef { .. } = error {
-                    let type_name = error.type_name();
-                    let crate_name = &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
-                    let location = error.location().unwrap();
-                    rows.push(format!(
-                        "| {} | {} | {}:{}:{} |",
-                        crate_name,
-                        type_name,
-                        location.filename.to_string_lossy(),
-                        location.begin.0,
-                        location.begin.1
-                    ));
-                }
-            }
-            rows.sort();
-            rows.into_iter().for_each(|row| println!("{row}"));
-        }
+    // Check if the crate has documentable items
+    if crate_data.index.is_empty() {
+        return Ok(PackageOutcome::Skipped(SkipReason::NoDocumentableItems));
     }
 
-    Ok(())
+    eprintln!("Examining all public types...");
+    let errors = Visitor::new(config, crate_data)?.visit_all()?;
+    Ok(PackageOutcome::Checked { errors })
 }
 
-fn resolve_config(metadata: &Metadata) -> Result<Config> {
+fn resolve_config_for_package(package: &Package) -> Result<Config> {
     let crate_metadata = match serde_json::from_value::<HashMap<String, serde_json::Value>>(
-        resolve_root_package(metadata)?.metadata.clone(),
+        package.metadata.clone(),
     ) {
         Ok(m) => m,
         // We avoid using ? on the serde_json::from_value because when the metadata is not provided
@@ -236,46 +362,30 @@ fn resolve_config(metadata: &Metadata) -> Result<Config> {
     )
 }
 
-fn resolve_features(metadata: &Metadata) -> Result<Vec<String>> {
-    let root_package = resolve_root_package(metadata)?;
+fn resolve_features_for_package(metadata: &Metadata, package: &Package) -> Result<Vec<String>> {
     if let Some(resolve) = &metadata.resolve {
         let root_node = resolve
             .nodes
             .iter()
-            .find(|&n| n.id == root_package.id)
-            .ok_or_else(|| anyhow!("Failed to find node for root package"))?;
+            .find(|&n| n.id == package.id)
+            .ok_or_else(|| anyhow!("Failed to find node for package {}", package.name))?;
         Ok(root_node.features.clone())
     } else {
         bail!("Cargo metadata didn't have resolved nodes");
     }
 }
 
-fn resolve_lib_name(metadata: &Metadata) -> Result<String> {
-    let lib_targets = resolve_root_package(metadata)?
+fn resolve_lib_name_for_package(package: &Package) -> Option<String> {
+    let lib_targets: Vec<_> = package
         .targets
         .iter()
         .filter(|t| t.kind.contains(&TargetKind::Lib))
-        .collect::<Vec<_>>();
-    if lib_targets.len() != 1 {
-        bail!(
-            "Expected crate to define 1 lib target, found {}",
-            lib_targets.len()
-        );
+        .collect();
+    if lib_targets.len() == 1 {
+        Some(lib_targets.first().unwrap().name.clone())
+    } else {
+        None
     }
-    Ok(lib_targets.first().unwrap().name.clone())
-}
-
-fn resolve_root_package(metadata: &Metadata) -> Result<&Package> {
-    metadata
-        .root_package()
-        .ok_or_else(|| {
-            let workspace_members = metadata.workspace_members.as_slice().iter().map(|id| id.to_string()).collect::<Vec<_>>().join("\n");
-            if !workspace_members.is_empty() {
-                anyhow!("it appears you're trying to run `cargo-check-external-types` on a workspace Cargo.toml; Instead, run it on one of the workspace member Cargo.tomls directly:\n{workspace_members}")
-            } else {
-                anyhow!("No root package found")
-            }
-        })
 }
 
 #[cfg(test)]
@@ -306,6 +416,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                skip_unsupported: false,
             }),
             Args::try_parse_from(["cargo", "check-external-types"]).unwrap()
         );
@@ -323,6 +434,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                skip_unsupported: false,
             }),
             Args::try_parse_from(["cargo", "check-external-types", "--all-features"]).unwrap()
         );
@@ -340,6 +452,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                skip_unsupported: false,
             }),
             Args::try_parse_from(["cargo", "check-external-types", "--no-default-features"])
                 .unwrap()
@@ -358,6 +471,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                skip_unsupported: false,
             }),
             Args::try_parse_from(["cargo", "check-external-types", "--features", "foo,bar"])
                 .unwrap()
@@ -376,6 +490,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                skip_unsupported: false,
             }),
             Args::try_parse_from([
                 "cargo",
@@ -399,6 +514,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
+                skip_unsupported: false,
             }),
             Args::try_parse_from([
                 "cargo",
@@ -422,6 +538,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: true,
                 output_format: OutputFormat::Errors,
+                skip_unsupported: false,
             }),
             Args::try_parse_from(["cargo", "check-external-types", "--verbose"]).unwrap()
         );
@@ -439,6 +556,7 @@ mod arg_parse_tests {
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::MarkdownTable,
+                skip_unsupported: false,
             }),
             Args::try_parse_from([
                 "cargo",
@@ -460,5 +578,23 @@ mod arg_parse_tests {
             "--no-default-features"
         ])
         .is_err());
+    }
+
+    #[test]
+    fn skip_unsupported() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                target: None,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+                skip_unsupported: true,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types", "--skip-unsupported"]).unwrap()
+        );
     }
 }

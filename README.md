@@ -82,6 +82,39 @@ cargo +nightly check-external-types --config external-types.toml
 If both a `Cargo.toml` package metadata section and a `--config` flag are
 provided, the `--config` flag will be used instead of the package metadata.
 
+### Workspace Support
+
+The tool can be run on a Cargo workspace root to check all workspace members:
+
+```bash
+cargo +nightly check-external-types --manifest-path /path/to/workspace/Cargo.toml
+```
+
+When running on a workspace:
+- Each package in the workspace is checked
+- Each package uses its own `[package.metadata.cargo_check_external_types]` configuration
+- If `--config` is provided, that configuration applies to all packages
+- `--features` is not supported for workspace targets; use `--all-features` instead
+
+### Unsupported Package Types
+
+Some package types don't produce standard library documentation and cannot be
+checked for external types:
+
+- **Binary-only packages**: Packages with only `[[bin]]` targets and no `[lib]`
+- **Proc-macro packages**: Packages with `proc-macro = true`
+- **Packages with no documentable items**: Packages with `doc = false` or empty libraries
+
+By default, the tool will error when encountering these package types. Use the
+`--skip-unsupported` flag to skip them instead:
+
+```bash
+cargo +nightly check-external-types --skip-unsupported
+```
+
+This is particularly useful when running on workspaces that contain a mix of
+library and non-library packages.
+
 ### Caveats
 
 When public types and modules declared inside a `#[doc(hidden)]` module are

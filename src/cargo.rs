@@ -53,6 +53,7 @@ impl CargoRustDocJson {
 
         let mut command = Command::new(cargo);
         command.current_dir(&self.crate_path).arg("rustdoc");
+        command.arg("--lib");
         if !self.features.is_empty() {
             command.arg("--no-default-features").arg("--features");
             command.arg(self.features.join(","));

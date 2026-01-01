@@ -5,6 +5,10 @@ members = [
     "test-crate",
     "test-crate-custom-lib-name",
     "test-crate-metadata-config",
+    "test-crate-with-examples",
     "test-reexports-crate",
     "test-type-exported-from-hidden-module",
+]
+exclude = [
+    "standalone",
 ]

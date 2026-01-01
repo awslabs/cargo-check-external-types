@@ -1,0 +1,11 @@
+[package]
+name = "binary-crate"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "binary-crate"
+path = "src/main.rs"
+
+[dependencies]
