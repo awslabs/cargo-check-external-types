@@ -108,8 +108,6 @@ enum SkipReason {
     NoLibTarget,
     /// Package is a proc-macro crate
     ProcMacro,
-    /// Package has no documentable items (e.g., doc = false)
-    NoDocumentableItems,
 }
 
 impl fmt::Display for SkipReason {
@@ -117,7 +115,6 @@ impl fmt::Display for SkipReason {
         match self {
             SkipReason::NoLibTarget => write!(f, "package has no lib target"),
             SkipReason::ProcMacro => write!(f, "package is a proc-macro crate"),
-            SkipReason::NoDocumentableItems => write!(f, "package has no documentable items"),
         }
     }
 }
@@ -329,11 +326,6 @@ fn check_package(
     )
     .run()
     .context(here!())?;
-
-    // Check if the crate has documentable items
-    if crate_data.index.is_empty() {
-        return Ok(PackageOutcome::Skipped(SkipReason::NoDocumentableItems));
-    }
 
     eprintln!("Examining all public types...");
     let errors = Visitor::new(config, crate_data)?.visit_all()?;

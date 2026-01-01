@@ -103,7 +103,6 @@ checked for external types:
 
 - **Binary-only packages**: Packages with only `[[bin]]` targets and no `[lib]`
 - **Proc-macro packages**: Packages with `proc-macro = true`
-- **Packages with no documentable items**: Packages with `doc = false` or empty libraries
 
 By default, the tool will error when encountering these package types. Use the
 `--skip-unsupported` flag to skip them instead:
