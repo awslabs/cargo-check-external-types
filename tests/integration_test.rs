@@ -160,25 +160,26 @@ fn test_crate_with_examples_succeeds() {
     // This test verifies that the --lib flag works correctly by checking a crate
     // that has an examples/ directory. Without --lib, rustdoc would try to document
     // the example and potentially fail.
-    let (exit_code, _stdout, _stderr) = run_with_args_full(
-        "test-workspace/test-crate-with-examples",
-        &[],
-    );
+    let (exit_code, _stdout, _stderr) =
+        run_with_args_full("test-workspace/test-crate-with-examples", &[]);
     // Should succeed (exit code 0 for no errors, or 1 for validation errors which is still "working")
-    assert!(exit_code == 0 || exit_code == 1, "Expected exit code 0 or 1, got {}", exit_code);
+    assert!(
+        exit_code == 0 || exit_code == 1,
+        "Expected exit code 0 or 1, got {}",
+        exit_code
+    );
 }
 
 #[test]
 fn test_binary_only_without_skip_flag() {
     // Binary-only crate should error without --skip-unsupported
-    let (exit_code, stdout, _stderr) = run_with_args_full(
-        "test-workspace/standalone/binary-only",
-        &[],
-    );
+    let (exit_code, stdout, _stderr) =
+        run_with_args_full("test-workspace/standalone/binary-only", &[]);
     assert_eq!(exit_code, 2, "Expected exit code 2 for unsupported package");
     assert!(
         stdout.contains("no lib target") || stdout.contains("not supported"),
-        "Expected error message about no lib target, got: {}", stdout
+        "Expected error message about no lib target, got: {}",
+        stdout
     );
 }
 
@@ -192,21 +193,21 @@ fn test_binary_only_with_skip_flag() {
     assert_eq!(exit_code, 0, "Expected exit code 0 with --skip-unsupported");
     assert!(
         stderr.contains("Skipping") && stderr.contains("no lib target"),
-        "Expected skip message in stderr, got: {}", stderr
+        "Expected skip message in stderr, got: {}",
+        stderr
     );
 }
 
 #[test]
 fn test_proc_macro_without_skip_flag() {
     // Proc-macro crate should error without --skip-unsupported
-    let (exit_code, stdout, _stderr) = run_with_args_full(
-        "test-workspace/standalone/proc-macro",
-        &[],
-    );
+    let (exit_code, stdout, _stderr) =
+        run_with_args_full("test-workspace/standalone/proc-macro", &[]);
     assert_eq!(exit_code, 2, "Expected exit code 2 for unsupported package");
     assert!(
         stdout.contains("proc-macro") || stdout.contains("not supported"),
-        "Expected error message about proc-macro, got: {}", stdout
+        "Expected error message about proc-macro, got: {}",
+        stdout
     );
 }
 
@@ -220,23 +221,26 @@ fn test_proc_macro_with_skip_flag() {
     assert_eq!(exit_code, 0, "Expected exit code 0 with --skip-unsupported");
     assert!(
         stderr.contains("Skipping") && stderr.contains("proc-macro"),
-        "Expected skip message in stderr, got: {}", stderr
+        "Expected skip message in stderr, got: {}",
+        stderr
     );
 }
 
 #[test]
 fn test_workspace_invocation() {
     // Running on the workspace root should process all members
-    let (exit_code, _stdout, stderr) = run_with_args_full(
-        "test-workspace",
-        &[],
-    );
+    let (exit_code, _stdout, stderr) = run_with_args_full("test-workspace", &[]);
     // May exit with 0 (all pass) or 1 (validation errors) - both indicate workspace iteration worked
-    assert!(exit_code == 0 || exit_code == 1, "Expected exit code 0 or 1, got {}", exit_code);
+    assert!(
+        exit_code == 0 || exit_code == 1,
+        "Expected exit code 0 or 1, got {}",
+        exit_code
+    );
     // Should show per-package headers
     assert!(
         stderr.contains("Checking package:"),
-        "Expected per-package headers in stderr, got: {}", stderr
+        "Expected per-package headers in stderr, got: {}",
+        stderr
     );
 }
 
@@ -244,64 +248,66 @@ fn test_workspace_invocation() {
 fn test_workspace_with_features_flag_errors() {
     // --features should not be allowed with workspace targets
     // Note: Cargo itself may error first if the feature doesn't exist in workspace members
-    let (exit_code, stdout, _stderr) = run_with_args_full(
-        "test-workspace",
-        &["--features", "some-feature"],
+    let (exit_code, stdout, _stderr) =
+        run_with_args_full("test-workspace", &["--features", "some-feature"]);
+    assert_eq!(
+        exit_code, 2,
+        "Expected exit code 2 for invalid flag combination"
     );
-    assert_eq!(exit_code, 2, "Expected exit code 2 for invalid flag combination");
     // Either our error or cargo's error is acceptable
     assert!(
         stdout.contains("--features is not supported for workspace targets")
             || stdout.contains("none of the selected packages contains this feature"),
-        "Expected error about --features, got: {}", stdout
+        "Expected error about --features, got: {}",
+        stdout
     );
 }
 
 #[test]
 fn test_workspace_with_all_features_succeeds() {
     // --all-features should work with workspace targets
-    let (exit_code, _stdout, stderr) = run_with_args_full(
-        "test-workspace",
-        &["--all-features"],
-    );
+    let (exit_code, _stdout, stderr) = run_with_args_full("test-workspace", &["--all-features"]);
     // May exit with 0 or 1 - both indicate workspace iteration worked
-    assert!(exit_code == 0 || exit_code == 1, "Expected exit code 0 or 1, got {}", exit_code);
+    assert!(
+        exit_code == 0 || exit_code == 1,
+        "Expected exit code 0 or 1, got {}",
+        exit_code
+    );
     assert!(
         stderr.contains("Checking package:"),
-        "Expected per-package headers in stderr, got: {}", stderr
+        "Expected per-package headers in stderr, got: {}",
+        stderr
     );
 }
 
 #[test]
 fn test_workspace_mixed_without_skip_flag() {
     // Mixed workspace should error on first unsupported package without --skip-unsupported
-    let (exit_code, stdout, _stderr) = run_with_args_full(
-        "test-workspace-mixed",
-        &[],
-    );
+    let (exit_code, stdout, _stderr) = run_with_args_full("test-workspace-mixed", &[]);
     assert_eq!(exit_code, 2, "Expected exit code 2 for unsupported package");
     assert!(
         stdout.contains("not supported") || stdout.contains("--skip-unsupported"),
-        "Expected error message suggesting --skip-unsupported, got: {}", stdout
+        "Expected error message suggesting --skip-unsupported, got: {}",
+        stdout
     );
 }
 
 #[test]
 fn test_workspace_mixed_with_skip_flag() {
     // Mixed workspace should skip unsupported packages and check supported ones
-    let (exit_code, _stdout, stderr) = run_with_args_full(
-        "test-workspace-mixed",
-        &["--skip-unsupported"],
-    );
+    let (exit_code, _stdout, stderr) =
+        run_with_args_full("test-workspace-mixed", &["--skip-unsupported"]);
     assert_eq!(exit_code, 0, "Expected exit code 0 with --skip-unsupported");
     // Should show skip messages for binary-crate and proc-macro-crate
     assert!(
         stderr.contains("Skipping binary-crate") || stderr.contains("Skipping"),
-        "Expected skip messages in stderr, got: {}", stderr
+        "Expected skip messages in stderr, got: {}",
+        stderr
     );
     // Should show checking lib-crate
     assert!(
         stderr.contains("Checking package: lib-crate") || stderr.contains("lib-crate"),
-        "Expected lib-crate to be checked, got: {}", stderr
+        "Expected lib-crate to be checked, got: {}",
+        stderr
     );
 }

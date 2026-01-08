@@ -5,12 +5,12 @@
 
 use anyhow::{anyhow, bail};
 use anyhow::{Context, Result};
-use cargo_metadata::camino::Utf8Path;
 use cargo_check_external_types::cargo::CargoRustDocJson;
 use cargo_check_external_types::config::Config;
 use cargo_check_external_types::error::{ErrorPrinter, ValidationError, ValidationErrors};
 use cargo_check_external_types::here;
 use cargo_check_external_types::visitor::Visitor;
+use cargo_metadata::camino::Utf8Path;
 use cargo_metadata::{CargoOpt, Metadata, Package, TargetKind};
 use clap::Parser;
 use std::collections::HashMap;
@@ -122,9 +122,7 @@ impl fmt::Display for SkipReason {
 /// Outcome of checking a single package.
 enum PackageOutcome {
     /// Package was checked, may have validation errors
-    Checked {
-        errors: ValidationErrors,
-    },
+    Checked { errors: ValidationErrors },
     /// Package was skipped for a specific reason
     Skipped(SkipReason),
 }
@@ -243,45 +241,44 @@ fn run_main() -> Result<(), Error> {
                     )));
                 }
             }
-            PackageOutcome::Checked { errors } => {
-                match args.output_format {
-                    OutputFormat::Errors => {
-                        ErrorPrinter::new(&cargo_metadata.workspace_root).pretty_print_errors(&errors);
-                        if errors.error_count() > 0 {
-                            had_validation_errors = true;
-                        }
-                    }
-                    OutputFormat::MarkdownTable => {
-                        if is_workspace_mode {
-                            println!("## {}", package.name);
-                            println!();
-                        }
-                        println!("| Crate | Type | Used In |");
-                        println!("| ---   | ---  | ---     |");
-                        let mut rows = Vec::new();
-                        for error in errors.iter() {
-                            if let ValidationError::UnapprovedExternalTypeRef { .. } = error {
-                                let type_name = error.type_name();
-                                let crate_name = &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
-                                let location = error.location().unwrap();
-                                rows.push(format!(
-                                    "| {} | {} | {}:{}:{} |",
-                                    crate_name,
-                                    type_name,
-                                    location.filename.to_string_lossy(),
-                                    location.begin.0,
-                                    location.begin.1
-                                ));
-                            }
-                        }
-                        rows.sort();
-                        rows.into_iter().for_each(|row| println!("{row}"));
-                        if is_workspace_mode {
-                            println!();
-                        }
+            PackageOutcome::Checked { errors } => match args.output_format {
+                OutputFormat::Errors => {
+                    ErrorPrinter::new(&cargo_metadata.workspace_root).pretty_print_errors(&errors);
+                    if errors.error_count() > 0 {
+                        had_validation_errors = true;
                     }
                 }
-            }
+                OutputFormat::MarkdownTable => {
+                    if is_workspace_mode {
+                        println!("## {}", package.name);
+                        println!();
+                    }
+                    println!("| Crate | Type | Used In |");
+                    println!("| ---   | ---  | ---     |");
+                    let mut rows = Vec::new();
+                    for error in errors.iter() {
+                        if let ValidationError::UnapprovedExternalTypeRef { .. } = error {
+                            let type_name = error.type_name();
+                            let crate_name =
+                                &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
+                            let location = error.location().unwrap();
+                            rows.push(format!(
+                                "| {} | {} | {}:{}:{} |",
+                                crate_name,
+                                type_name,
+                                location.filename.to_string_lossy(),
+                                location.begin.0,
+                                location.begin.1
+                            ));
+                        }
+                    }
+                    rows.sort();
+                    rows.into_iter().for_each(|row| println!("{row}"));
+                    if is_workspace_mode {
+                        println!();
+                    }
+                }
+            },
         }
     }
 
@@ -317,15 +314,10 @@ fn check_package(
     };
 
     eprintln!("Running rustdoc to produce json doc output...");
-    let crate_data = CargoRustDocJson::new(
-        lib_name,
-        crate_path,
-        target_directory,
-        features,
-        target,
-    )
-    .run()
-    .context(here!())?;
+    let crate_data =
+        CargoRustDocJson::new(lib_name, crate_path, target_directory, features, target)
+            .run()
+            .context(here!())?;
 
     eprintln!("Examining all public types...");
     let errors = Visitor::new(config, crate_data)?.visit_all()?;
