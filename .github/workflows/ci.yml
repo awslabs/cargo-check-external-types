@@ -14,7 +14,7 @@ env:
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
   RUST_BACKTRACE: 1
-  rust_version: nightly-2025-10-18
+  rust_version: nightly-2026-03-20
 
 jobs:
   fmt:
