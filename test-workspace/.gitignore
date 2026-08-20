@@ -1,1 +1,2 @@
 Cargo.lock
+!standalone/stale-lockfile/Cargo.lock
