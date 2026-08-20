@@ -5,7 +5,7 @@
 
 use anyhow::{anyhow, bail};
 use anyhow::{Context, Result};
-use cargo_check_external_types::cargo::CargoRustDocJson;
+use cargo_check_external_types::cargo::{CargoManifestOpts, CargoRustDocJson};
 use cargo_check_external_types::config::Config;
 use cargo_check_external_types::error::{ErrorPrinter, ValidationError, ValidationErrors};
 use cargo_check_external_types::here;
@@ -69,6 +69,16 @@ struct CheckExternalTypesArgs {
     /// Target triple
     #[arg(long)]
     target: Option<String>,
+    /// Prevents Cargo from accessing the network for any reason
+    #[arg(long)]
+    offline: bool,
+    /// Asserts that the exact same dependencies and versions are used as when the existing
+    /// `Cargo.lock` file was originally generated
+    #[arg(long)]
+    locked: bool,
+    /// Equivalent to specifying both --locked and --offline
+    #[arg(long)]
+    frozen: bool,
 
     /// Path to config toml to read
     #[arg(long)]
@@ -156,6 +166,12 @@ fn run_main() -> Result<(), Error> {
             .init();
     }
 
+    let manifest_opts = CargoManifestOpts {
+        offline: args.offline,
+        locked: args.locked,
+        frozen: args.frozen,
+    };
+
     let mut cargo_metadata_cmd = cargo_metadata::MetadataCommand::new();
     if args.all_features {
         cargo_metadata_cmd.features(CargoOpt::AllFeatures);
@@ -169,6 +185,8 @@ fn run_main() -> Result<(), Error> {
     if let Some(manifest_path) = &args.manifest_path {
         cargo_metadata_cmd.manifest_path(manifest_path);
     }
+    // `other_options` assigns rather than appends, so this must be a single call.
+    cargo_metadata_cmd.other_options(manifest_opts.to_args());
     let cargo_metadata = cargo_metadata_cmd.exec().context(here!())?;
 
     // Determine if we're in workspace mode or single-package mode
@@ -227,6 +245,7 @@ fn run_main() -> Result<(), Error> {
             &cargo_metadata.target_directory,
             cargo_features,
             args.target.clone(),
+            manifest_opts.clone(),
         )?;
 
         match outcome {
@@ -297,6 +316,7 @@ fn check_package(
     target_directory: &Utf8Path,
     features: Vec<String>,
     target: Option<String>,
+    manifest_opts: CargoManifestOpts,
 ) -> Result<PackageOutcome> {
     // Check if package is a proc-macro crate
     let is_proc_macro = package
@@ -314,10 +334,16 @@ fn check_package(
     };
 
     eprintln!("Running rustdoc to produce json doc output...");
-    let crate_data =
-        CargoRustDocJson::new(lib_name, crate_path, target_directory, features, target)
-            .run()
-            .context(here!())?;
+    let crate_data = CargoRustDocJson::new(
+        lib_name,
+        crate_path,
+        target_directory,
+        features,
+        target,
+        manifest_opts,
+    )
+    .run()
+    .context(here!())?;
 
     eprintln!("Examining all public types...");
     let errors = Visitor::new(config, crate_data)?.visit_all()?;
@@ -397,6 +423,9 @@ mod arg_parse_tests {
                 features: None,
                 manifest_path: None,
                 target: None,
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -415,6 +444,9 @@ mod arg_parse_tests {
                 features: None,
                 manifest_path: None,
                 target: None,
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -433,6 +465,9 @@ mod arg_parse_tests {
                 features: None,
                 manifest_path: None,
                 target: None,
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -452,6 +487,9 @@ mod arg_parse_tests {
                 features: Some(vec!["foo".into(), "bar".into()]),
                 manifest_path: None,
                 target: None,
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -471,6 +509,9 @@ mod arg_parse_tests {
                 features: None,
                 manifest_path: Some("test-path".into()),
                 target: None,
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -495,6 +536,9 @@ mod arg_parse_tests {
                 features: None,
                 manifest_path: None,
                 target: Some("x86_64-unknown-linux-gnu".into()),
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,
@@ -519,6 +563,9 @@ mod arg_parse_tests {
                 features: None,
                 manifest_path: None,
                 target: None,
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: true,
                 output_format: OutputFormat::Errors,
@@ -537,6 +584,9 @@ mod arg_parse_tests {
                 features: None,
                 manifest_path: None,
                 target: None,
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::MarkdownTable,
@@ -547,6 +597,99 @@ mod arg_parse_tests {
                 "check-external-types",
                 "--output-format",
                 "markdown-table"
+            ])
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn offline() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                target: None,
+                offline: true,
+                locked: false,
+                frozen: false,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+                skip_unsupported: false,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types", "--offline"]).unwrap()
+        );
+    }
+
+    #[test]
+    fn locked() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                target: None,
+                offline: false,
+                locked: true,
+                frozen: false,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+                skip_unsupported: false,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types", "--locked"]).unwrap()
+        );
+    }
+
+    #[test]
+    fn frozen() {
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                target: None,
+                offline: false,
+                locked: false,
+                frozen: true,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+                skip_unsupported: false,
+            }),
+            Args::try_parse_from(["cargo", "check-external-types", "--frozen"]).unwrap()
+        );
+    }
+
+    #[test]
+    fn offline_locked_and_frozen_combined() {
+        // `cargo` accepts these together (`--frozen` implies the other two), so the tool
+        // must not reject the combination.
+        assert_eq!(
+            Args::CheckExternalTypes(CheckExternalTypesArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                target: None,
+                offline: true,
+                locked: true,
+                frozen: true,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Errors,
+                skip_unsupported: false,
+            }),
+            Args::try_parse_from([
+                "cargo",
+                "check-external-types",
+                "--offline",
+                "--locked",
+                "--frozen"
             ])
             .unwrap()
         );
@@ -573,6 +716,9 @@ mod arg_parse_tests {
                 features: None,
                 manifest_path: None,
                 target: None,
+                offline: false,
+                locked: false,
+                frozen: false,
                 config: None,
                 verbose: false,
                 output_format: OutputFormat::Errors,

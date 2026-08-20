@@ -96,6 +96,24 @@ When running on a workspace:
 - If `--config` is provided, that configuration applies to all packages
 - `--features` is not supported for workspace targets; use `--all-features` instead
 
+### Offline and Locked Builds
+
+By default Cargo resolves the dependency graph, which can reach the network and update
+`Cargo.lock`. For CI and other security sensitive environments where that isn't desirable,
+the following Cargo flags are supported:
+
+- `--offline`: run without accessing the network
+- `--locked`: fail rather than change `Cargo.lock`
+- `--frozen`: equivalent to `--locked --offline`
+
+For details see the
+[Cargo Manifest Options](https://doc.rust-lang.org/cargo/commands/cargo.html#manifest-options)
+section.
+
+```bash
+cargo +nightly check-external-types --locked --offline
+```
+
 ### Unsupported Package Types
 
 Some package types don't produce standard library documentation and cannot be

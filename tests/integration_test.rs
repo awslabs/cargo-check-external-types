@@ -311,3 +311,20 @@ fn test_workspace_mixed_with_skip_flag() {
         stderr
     );
 }
+
+#[test]
+fn offline_locked_and_frozen_are_passed_to_cargo() {
+    // Using commited `Cargo.lock` and only path dependencies, so
+    // restricting network access must not alter the result.
+    let (baseline_code, baseline_stdout, _) =
+        run_with_args_full("test-workspace-mixed", &["--skip-unsupported"]);
+    let (restricted_code, restricted_stdout, restricted_stderr) = run_with_args_full(
+        "test-workspace-mixed",
+        &["--skip-unsupported", "--offline", "--locked", "--frozen"],
+    );
+    assert_eq!(
+        baseline_code, restricted_code,
+        "exit code changed under --offline --locked --frozen, stderr: {restricted_stderr}"
+    );
+    assert_str_eq!(baseline_stdout, restricted_stdout);
+}
