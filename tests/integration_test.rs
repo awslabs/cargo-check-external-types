@@ -311,3 +311,49 @@ fn test_workspace_mixed_with_skip_flag() {
         stderr
     );
 }
+
+#[test]
+fn offline_locked_and_frozen_are_passed_to_cargo() {
+    let (baseline_code, baseline_stdout, _) =
+        run_with_args_full("test-workspace-mixed", &["--skip-unsupported"]);
+    let (restricted_code, restricted_stdout, restricted_stderr) = run_with_args_full(
+        "test-workspace-mixed",
+        &["--skip-unsupported", "--offline", "--locked", "--frozen"],
+    );
+    assert_eq!(
+        baseline_code, restricted_code,
+        "exit code changed under --offline --locked --frozen, stderr: {restricted_stderr}"
+    );
+    assert_str_eq!(baseline_stdout, restricted_stdout);
+}
+
+/// The fixture's `Cargo.lock` is deliberately stale. Never run it without one of these
+/// flags: an unrestricted run would refresh the lock file and disarm this test.
+#[test]
+fn locked_and_frozen_reject_a_stale_lockfile() {
+    const LOCKFILE: &str = "test-workspace/standalone/stale-lockfile/Cargo.lock";
+    assert!(
+        fs::read_to_string(LOCKFILE).unwrap().contains("0.1.0"),
+        "{LOCKFILE} is no longer stale, so this test can't fail closed. \
+         Restore it with `git checkout {LOCKFILE}`."
+    );
+
+    for flag in ["--locked", "--frozen"] {
+        let (exit_code, stdout, stderr) =
+            run_with_args_full("test-workspace/standalone/stale-lockfile", &[flag]);
+        assert_eq!(
+            2, exit_code,
+            "expected {flag} to fail with exit code 2, got {exit_code}. stdout: {stdout}"
+        );
+        assert!(
+            stdout.contains("lock file") && stdout.contains(flag),
+            "expected {flag} to be rejected because of the lock file, got stdout: {stdout}\nstderr: {stderr}"
+        );
+    }
+
+    let lockfile = fs::read_to_string(LOCKFILE).unwrap();
+    assert!(
+        lockfile.contains("version = \"0.1.0\""),
+        "the stale lock file was rewritten, so this test would no longer fail closed: {lockfile}"
+    );
+}

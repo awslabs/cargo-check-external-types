@@ -16,6 +16,52 @@ struct CrateFormatVersion {
     format_version: u32,
 }
 
+/// Cargo's [manifest options], forwarded verbatim to every `cargo` invocation this tool
+/// makes.
+///
+/// [manifest options]: https://doc.rust-lang.org/cargo/commands/cargo.html#manifest-options
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct CargoManifestOpts {
+    /// Prevents Cargo from accessing the network for any reason. Without this flag, Cargo
+    /// will stop with an error if it needs to access the network and the network is not
+    /// available. With this flag, Cargo will attempt to proceed without the network if
+    /// possible.
+    ///
+    /// Beware that this may result in different dependency resolution than online mode.
+    /// Cargo will restrict itself to crates that are downloaded locally, even if there
+    /// might be a newer version as indicated in the local copy of the index.
+    pub offline: bool,
+    /// Asserts that the exact same dependencies and versions are used as when the existing
+    /// `Cargo.lock` file was originally generated. Cargo will exit with an error when
+    /// either of the following scenarios arises:
+    ///
+    /// * The lock file is missing.
+    /// * Cargo attempted to change the lock file due to a different dependency resolution.
+    ///
+    /// It may be used in environments where deterministic builds are desired, such as in
+    /// CI pipelines.
+    pub locked: bool,
+    /// Equivalent to specifying both `--locked` and `--offline`.
+    pub frozen: bool,
+}
+
+impl CargoManifestOpts {
+    /// Renders these options as `cargo` arguments.
+    pub fn to_args(&self) -> Vec<String> {
+        let mut args = Vec::new();
+        if self.offline {
+            args.push("--offline".to_string());
+        }
+        if self.locked {
+            args.push("--locked".to_string());
+        }
+        if self.frozen {
+            args.push("--frozen".to_string());
+        }
+        args
+    }
+}
+
 /// Runs the `cargo rustdoc` command required to produce Rustdoc's JSON output with a nightly compiler.
 pub struct CargoRustDocJson {
     /// Name of the lib target, by default this is the crate name but may be customized in the
@@ -29,6 +75,8 @@ pub struct CargoRustDocJson {
     features: Vec<String>,
     /// Target triple
     target: Option<String>,
+    /// Flags restricting network access and `Cargo.lock` mutation
+    manifest_opts: CargoManifestOpts,
 }
 
 impl CargoRustDocJson {
@@ -38,6 +86,7 @@ impl CargoRustDocJson {
         target_path: impl Into<PathBuf>,
         features: Vec<String>,
         target: Option<String>,
+        manifest_opts: CargoManifestOpts,
     ) -> Self {
         CargoRustDocJson {
             lib_name: lib_name.into(),
@@ -45,6 +94,7 @@ impl CargoRustDocJson {
             target_path: target_path.into(),
             features,
             target,
+            manifest_opts,
         }
     }
 
@@ -61,6 +111,8 @@ impl CargoRustDocJson {
         if let Some(target) = &self.target {
             command.arg("--target").arg(target);
         }
+        // Must precede `--`, or rustdoc receives these instead of cargo.
+        command.args(self.manifest_opts.to_args());
         command
             .arg("--")
             .arg("--document-private-items")
@@ -128,4 +180,47 @@ pub fn capture_error(operation_name: &str, output: &Output) -> anyhow::Error {
         stderr = String::from_utf8_lossy(&output.stderr)
     );
     anyhow::Error::msg(message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CargoManifestOpts;
+
+    #[test]
+    fn manifest_opts_to_args() {
+        assert!(CargoManifestOpts::default().to_args().is_empty());
+        assert_eq!(
+            vec!["--offline"],
+            CargoManifestOpts {
+                offline: true,
+                ..Default::default()
+            }
+            .to_args()
+        );
+        assert_eq!(
+            vec!["--locked"],
+            CargoManifestOpts {
+                locked: true,
+                ..Default::default()
+            }
+            .to_args()
+        );
+        assert_eq!(
+            vec!["--frozen"],
+            CargoManifestOpts {
+                frozen: true,
+                ..Default::default()
+            }
+            .to_args()
+        );
+        assert_eq!(
+            vec!["--offline", "--locked", "--frozen"],
+            CargoManifestOpts {
+                offline: true,
+                locked: true,
+                frozen: true,
+            }
+            .to_args()
+        );
+    }
 }
