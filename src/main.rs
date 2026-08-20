@@ -667,8 +667,6 @@ mod arg_parse_tests {
 
     #[test]
     fn offline_locked_and_frozen_combined() {
-        // `cargo` accepts these together (`--frozen` implies the other two), so the tool
-        // must not reject the combination.
         assert_eq!(
             Args::CheckExternalTypes(CheckExternalTypesArgs {
                 all_features: false,

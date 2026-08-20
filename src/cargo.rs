@@ -111,7 +111,7 @@ impl CargoRustDocJson {
         if let Some(target) = &self.target {
             command.arg("--target").arg(target);
         }
-        // Must come before the `--` separator so that cargo, rather than rustdoc, receives them.
+        // Must precede `--`, or rustdoc receives these instead of cargo.
         command.args(self.manifest_opts.to_args());
         command
             .arg("--")
@@ -213,7 +213,6 @@ mod tests {
             }
             .to_args()
         );
-        // `cargo` itself accepts these together, so the tool doesn't reject the combination.
         assert_eq!(
             vec!["--offline", "--locked", "--frozen"],
             CargoManifestOpts {
